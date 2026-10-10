@@ -1,0 +1,2796 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="screen-orientation" content="landscape">
+<meta name="mobile-web-app-capable" content="yes">
+<title>বৌ ভুত 3D — পালাও!</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;overflow:hidden;background:#000;color:#e8e2d8;
+    font-family:'Noto Sans Bengali',system-ui,sans-serif;user-select:none;touch-action:none;}
+  #app{position:fixed;inset:0;}
+  #scene{display:block;width:100%;height:100%;}
+  #vignette{position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(ellipse at center, rgba(0,0,0,0) 50%, rgba(0,0,0,.72) 100%);}
+  #damage{position:absolute;inset:0;pointer-events:none;opacity:0;
+    background:radial-gradient(ellipse at center, rgba(255,0,20,0) 40%, rgba(255,0,20,.75) 100%);
+    transition:opacity .12s linear;}
+  #fearOverlay{position:absolute;inset:0;pointer-events:none;opacity:0;
+    background:radial-gradient(ellipse at center, rgba(255,0,30,0) 30%, rgba(180,0,20,.55) 100%);
+    mix-blend-mode:multiply;}
+  #pulse{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:2;
+    background:radial-gradient(ellipse at center, rgba(255,10,30,0) 40%, rgba(220,0,30,.7) 100%);}
+  #noiseRing{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:1;
+    background:radial-gradient(circle at center, rgba(255,220,80,0) 30%, rgba(255,180,30,.4) 100%);}
+
+  #hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;
+    align-items:flex-start;padding:max(10px, env(safe-area-inset-top, 10px)) max(16px, env(safe-area-inset-right, 16px)) 10px max(16px, env(safe-area-inset-left, 16px));
+    pointer-events:none;font-size:clamp(12px,2.1vw,15px);font-weight:700;
+    text-shadow:0 2px 8px #000;gap:10px;flex-wrap:wrap;z-index:4;}
+  #hudLeft{display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
+  #hudTime{color:#d0c8d8;font-family:monospace;font-size:clamp(11px,1.9vw,14px);
+    background:rgba(0,0,0,.5);padding:3px 9px;border-radius:6px;border:1px solid rgba(255,255,255,.1);}
+  #hudBpm{color:#ff5566;font-family:monospace;font-size:clamp(10px,1.7vw,12px);
+    opacity:0;transition:opacity .3s;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:5px;}
+  #hudBpm.on{opacity:.95;}
+  #hudFps{color:#7ec8a0;font-family:monospace;font-size:10px;opacity:0;transition:opacity .3s;
+    background:rgba(0,0,0,.5);padding:2px 7px;border-radius:5px;}
+  #hudFps.on{opacity:.85;}
+  #hudRight{display:flex;gap:10px;align-items:center;}
+  #hudLives{color:#e8484f;letter-spacing:2px;font-size:1.1em;text-shadow:0 0 10px rgba(232,72,79,.6);}
+  #hudLives .off{opacity:.22;}
+  #pauseBtn{pointer-events:auto;cursor:pointer;background:rgba(0,0,0,.55);
+    border:1px solid rgba(255,255,255,.25);width:38px;height:38px;border-radius:8px;
+    display:flex;align-items:center;justify-content:center;font-size:16px;
+    transition:all .15s;}
+  #pauseBtn:hover{background:rgba(0,0,0,.85);border-color:rgba(255,255,255,.5);}
+
+  #noiseBar{
+    position:absolute;top:52px;left:50%;transform:translateX(-50%);
+    width:min(260px,50vw);height:10px;border-radius:6px;
+    background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.18);
+    overflow:hidden;pointer-events:none;z-index:4;opacity:0;transition:opacity .3s;
+  }
+  #noiseBar.on{opacity:.95;}
+  #noiseBarFill{
+    height:100%;width:0%;
+    background:linear-gradient(90deg,#3dff7a,#ffd23d,#ff3d3d);
+  }
+  #noiseBar .icon{position:absolute;left:6px;top:-3px;font-size:14px;color:#fff;text-shadow:0 0 6px #000;}
+
+  #inventory{position:absolute;bottom:max(12px, env(safe-area-inset-bottom, 12px));
+    left:max(12px, env(safe-area-inset-left, 12px));display:flex;gap:8px;
+    background:rgba(10,6,14,.85);border:1px solid rgba(255,255,255,.18);
+    border-radius:12px;padding:8px 12px;pointer-events:none;z-index:4;
+    backdrop-filter:blur(8px);}
+  .slot{width:42px;height:42px;border-radius:8px;background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;
+    font-size:22px;position:relative;transition:all .25s;}
+  .slot .count{position:absolute;bottom:1px;right:3px;font-size:11px;font-weight:700;
+    color:#ffd750;text-shadow:0 0 4px #000;}
+  .slot.empty{opacity:.28;}
+  .slot.have{border-color:rgba(120,255,180,.6);box-shadow:0 0 12px rgba(120,255,180,.3);}
+
+  #msg{position:absolute;top:14%;left:50%;transform:translateX(-50%);
+    text-align:center;font-size:clamp(13px,2.5vw,19px);font-weight:700;
+    color:#4dffa0;text-shadow:0 0 18px rgba(77,255,160,.8),0 2px 8px #000;
+    pointer-events:none;opacity:0;transition:opacity .3s;max-width:80vw;z-index:5;
+    background:rgba(0,0,0,.6);padding:8px 18px;border-radius:12px;
+    border:1px solid rgba(77,255,160,.3);}
+
+  #crosshair{position:absolute;top:50%;left:50%;
+    width:var(--ch-size,6px);height:var(--ch-size,6px);
+    margin:calc(var(--ch-size,6px)/-2) 0 0 calc(var(--ch-size,6px)/-2);
+    border-radius:50%;background:rgba(255,255,255,var(--ch-opacity,.6));
+    pointer-events:none;box-shadow:0 0 6px rgba(0,0,0,.9);}
+
+  #joy{position:absolute;width:120px;height:120px;border-radius:50%;
+    border:2px solid rgba(255,255,255,.3);display:none;
+    pointer-events:none;transform:translate(-50%,-50%);z-index:3;
+    background:radial-gradient(circle, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.3) 100%);}
+  #joyKnob{position:absolute;top:50%;left:50%;width:52px;height:52px;margin:-26px 0 0 -26px;
+    border-radius:50%;background:rgba(255,255,255,.38);
+    border:1px solid rgba(255,255,255,.5);box-shadow:0 0 10px rgba(0,0,0,.6);}
+
+  .actionBtn{position:absolute;width:76px;height:76px;border-radius:50%;
+    display:none;align-items:center;justify-content:center;flex-direction:column;
+    font-size:26px;font-weight:700;color:#fff;pointer-events:auto;cursor:pointer;
+    border:2px solid rgba(255,255,255,.38);text-shadow:0 0 8px #000;
+    box-shadow:0 4px 20px rgba(0,0,0,.6);z-index:6;touch-action:none;user-select:none;}
+  #runBtn{right:max(16px, env(safe-area-inset-right, 16px));bottom:max(16px, env(safe-area-inset-bottom, 16px));background:rgba(30,110,220,.65);display:flex;}
+  #runBtn.active{background:rgba(60,160,255,.95);transform:scale(1.04);}
+  #hideBtn{right:calc(max(16px, env(safe-area-inset-right, 16px)) + 94px);bottom:max(16px, env(safe-area-inset-bottom, 16px));background:rgba(180,120,30,.75);}
+  #hideBtn.show{display:flex;}
+  #actionBtn{right:calc(max(16px, env(safe-area-inset-right, 16px)) + 188px);bottom:max(16px, env(safe-area-inset-bottom, 16px));background:rgba(120,180,40,.8);}
+  #actionBtn.show{display:flex;}
+  .actionBtn .lbl{font-size:9px;font-weight:700;letter-spacing:.4px;margin-top:-2px;}
+
+  #searchProgress{
+    position:absolute;bottom:110px;left:50%;transform:translateX(-50%);
+    width:220px;height:14px;border-radius:8px;
+    background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.28);
+    overflow:hidden;pointer-events:none;z-index:5;opacity:0;transition:opacity .2s;
+  }
+  #searchProgress.on{opacity:1;}
+  #searchProgressFill{
+    height:100%;width:0%;
+    background:linear-gradient(90deg,#3dff7a,#4dffa0);
+    box-shadow:0 0 12px rgba(77,255,160,.7);
+  }
+  #searchLabel{
+    position:absolute;bottom:128px;left:50%;transform:translateX(-50%);
+    font-size:12px;color:#4dffa0;text-shadow:0 0 10px rgba(77,255,160,.8),0 2px 6px #000;
+    z-index:5;pointer-events:none;opacity:0;transition:opacity .2s;
+  }
+  #searchLabel.on{opacity:1;}
+
+  #jumpscare{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:25;
+    background:radial-gradient(circle at center, rgba(200,0,20,.96), rgba(40,0,5,.98));
+    transition:opacity .08s linear;}
+  #jumpscare.flash{opacity:1;}
+  #jumpscareCanvas{position:absolute;inset:0;width:100%;height:100%;}
+
+  .overlay{position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;padding:16px;gap:5px;
+    background:radial-gradient(circle at center,rgba(26,4,16,.96),rgba(0,0,0,.99));
+    z-index:20;overflow-y:auto;}
+  .overlay.hidden{display:none;}
+  .overlay h1{font-size:clamp(24px,5vw,42px);margin:0 0 4px;color:#ff4d5e;
+    text-shadow:0 0 30px rgba(255,60,80,.65);}
+  .overlay h1.good{color:#4dffa0;text-shadow:0 0 30px rgba(77,255,160,.6);}
+  .overlay p{margin:3px 0;font-size:clamp(12px,1.9vw,15px);line-height:1.7;color:#c8c0d0;max-width:700px;}
+  .overlay ul{text-align:left;margin:4px 0;padding-left:18px;font-size:clamp(11px,1.7vw,13px);
+    color:#a9a2b0;line-height:1.8;max-width:660px;columns:2;column-gap:22px;}
+  .overlay .small{font-size:clamp(10px,1.6vw,12px);color:#6f6878;}
+  .diff-row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;justify-content:center;}
+  .diff-btn{padding:11px 22px;font-size:clamp(13px,2vw,16px);font-family:inherit;font-weight:700;
+    border:2px solid transparent;border-radius:12px;cursor:pointer;transition:all .15s;
+    display:flex;flex-direction:column;align-items:center;gap:1px;min-width:120px;color:#fff;}
+  .diff-btn .sub{font-size:.7em;font-weight:400;opacity:.85;}
+  .diff-btn[data-diff="easy"]{background:linear-gradient(180deg,#2fbf6a,#1d8a49);}
+  .diff-btn[data-diff="medium"]{background:linear-gradient(180deg,#d8a02c,#a87816);}
+  .diff-btn[data-diff="hard"]{background:linear-gradient(180deg,#d8384a,#8c1626);}
+  .diff-btn:hover{transform:translateY(-3px);filter:brightness(1.15);}
+  .overlay .btn-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;justify-content:center;}
+  .overlay button.primary{padding:12px 34px;font-size:clamp(14px,2.2vw,17px);
+    font-family:inherit;font-weight:700;color:#14060a;
+    background:linear-gradient(180deg,#ff6b7a,#e0243c);border:none;border-radius:999px;
+    cursor:pointer;box-shadow:0 6px 28px rgba(224,36,60,.5);transition:all .15s;}
+  .overlay button.primary:hover{transform:translateY(-2px);}
+  .overlay button.secondary{padding:12px 34px;font-size:clamp(14px,2.2vw,17px);
+    font-family:inherit;font-weight:700;color:#e8e2d8;
+    background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.2);
+    border-radius:999px;cursor:pointer;transition:all .15s;}
+  .overlay button.secondary:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.4);}
+  .kbd{display:inline-block;background:#241d24;border:1px solid #453a45;border-radius:4px;
+    padding:1px 6px;font-family:monospace;font-size:.9em;color:#e8e2d8;}
+
+  #hint{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.18);
+    padding:7px 16px;border-radius:999px;font-size:12px;color:#cfc8d6;
+    pointer-events:none;z-index:15;}
+  #hint.hidden{display:none;}
+
+  #intro{position:absolute;inset:0;z-index:40;display:none;flex-direction:column;
+    align-items:center;justify-content:center;background:#000;overflow:hidden;}
+  #intro.open{display:flex;}
+  #introBg{position:absolute;inset:0;
+    background:
+      radial-gradient(ellipse 70% 50% at 50% 35%, rgba(120,10,25,.45), transparent 70%),
+      radial-gradient(ellipse 90% 60% at 50% 100%, rgba(60,4,14,.7), transparent 70%),
+      linear-gradient(180deg, #0a0208 0%, #1a0410 50%, #05010a 100%);}
+  #introStage{position:relative;z-index:2;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;padding:20px 26px;max-width:720px;min-height:60vh;}
+  .introSlide{display:none;flex-direction:column;align-items:center;gap:14px;
+    animation:introSlideIn .9s ease forwards;max-width:640px;}
+  .introSlide.show{display:flex;}
+  @keyframes introSlideIn{from{opacity:0;transform:translateY(20px);filter:blur(6px);}
+    to{opacity:1;transform:translateY(0);filter:blur(0);}}
+  .introSlide .icon{font-size:clamp(58px,12vw,110px);line-height:1;
+    filter:drop-shadow(0 0 30px rgba(255,60,90,.55));
+    animation:introIconPulse 3s ease-in-out infinite;margin-bottom:6px;}
+  @keyframes introIconPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+  .introSlide h2{font-size:clamp(20px,4vw,34px);font-weight:700;
+    color:#ff8b96;text-shadow:0 0 26px rgba(255,60,90,.6);margin:0;}
+  .introSlide p{font-size:clamp(13px,2.2vw,17px);line-height:1.85;
+    color:#d8d0e0;max-width:560px;margin:0;text-shadow:0 2px 10px #000;}
+  .introSlide p b{color:#ff5b6c;}
+  .introSlide .quote{margin-top:6px;font-style:italic;color:#ff8b96;
+    border-left:3px solid rgba(255,60,90,.6);padding:6px 16px;
+    background:rgba(255,60,90,.05);border-radius:0 8px 8px 0;font-size:clamp(12px,2vw,15px);}
+  #introDots{position:absolute;bottom:78px;left:50%;transform:translateX(-50%);
+    display:flex;gap:8px;z-index:3;}
+  #introDots .dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.18);transition:all .3s;}
+  #introDots .dot.active{background:#ff5b6c;width:22px;border-radius:4px;box-shadow:0 0 12px rgba(255,60,90,.7);}
+  #introSkip{position:absolute;bottom:22px;right:max(22px, env(safe-area-inset-right, 22px));z-index:3;padding:9px 20px;border-radius:999px;
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);
+    color:#cfc8d6;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;font-family:inherit;}
+  #introSkip:hover{background:rgba(255,255,255,.18);color:#fff;}
+  #introProgress{position:absolute;top:0;left:0;right:0;height:2px;
+    background:rgba(255,255,255,.06);z-index:3;}
+  #introProgressBar{height:100%;width:0%;
+    background:linear-gradient(90deg,#ff8b96,#c8122c);box-shadow:0 0 12px rgba(255,60,90,.6);}
+
+  #settings{position:absolute;inset:0;z-index:30;background:rgba(6,2,10,.96);
+    backdrop-filter:blur(16px);display:none;flex-direction:column;color:#e8e2d8;overflow:hidden;}
+  #settings.open{display:flex;animation:fadeIn .2s ease;}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+  #setHeader{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 22px;border-bottom:1px solid rgba(255,255,255,.1);
+    background:linear-gradient(180deg,rgba(20,4,14,.8),rgba(20,4,14,.4));flex-shrink:0;}
+  #setHeader h2{margin:0;font-size:clamp(18px,3vw,24px);color:#ff5b6c;
+    text-shadow:0 0 20px rgba(255,60,80,.4);display:flex;align-items:center;gap:10px;}
+  #setHeader .closeBtn{width:40px;height:40px;border-radius:10px;background:rgba(255,60,80,.15);
+    border:1px solid rgba(255,60,80,.4);color:#ff5b6c;font-size:22px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;transition:all .15s;font-family:inherit;}
+  #setHeader .closeBtn:hover{background:rgba(255,60,80,.3);}
+  #setTabs{display:flex;gap:4px;padding:10px 22px;border-bottom:1px solid rgba(255,255,255,.08);
+    flex-shrink:0;overflow-x:auto;scrollbar-width:none;}
+  #setTabs::-webkit-scrollbar{display:none;}
+  .setTab{padding:9px 18px;border-radius:10px;background:rgba(255,255,255,.04);
+    border:1px solid transparent;cursor:pointer;font-size:clamp(12px,1.8vw,14px);
+    font-weight:700;color:#a9a2b0;transition:all .15s;white-space:nowrap;
+    font-family:inherit;display:flex;align-items:center;gap:6px;}
+  .setTab:hover{background:rgba(255,255,255,.08);color:#e8e2d8;}
+  .setTab.active{background:linear-gradient(180deg,rgba(255,60,80,.25),rgba(255,60,80,.12));
+    color:#ff8b96;border-color:rgba(255,60,80,.35);}
+  #setBody{flex:1;overflow-y:auto;padding:18px 26px 90px;scrollbar-width:thin;
+    scrollbar-color:rgba(255,60,80,.4) transparent;}
+  #setBody::-webkit-scrollbar{width:8px;}
+  #setBody::-webkit-scrollbar-thumb{background:rgba(255,60,80,.35);border-radius:4px;}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;animation:fadeIn .2s ease;}
+  .setSection{margin-bottom:22px;background:rgba(255,255,255,.025);
+    border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px 18px;}
+  .setSection h3{margin:0 0 12px;font-size:clamp(13px,1.9vw,15px);color:#ff8b96;
+    display:flex;align-items:center;gap:8px;padding-bottom:8px;
+    border-bottom:1px dashed rgba(255,255,255,.09);}
+  .setSection h3 .dot{width:6px;height:6px;border-radius:50%;background:#ff5b6c;box-shadow:0 0 8px #ff5b6c;}
+  .row{display:flex;align-items:center;justify-content:space-between;padding:9px 2px;
+    gap:14px;min-height:44px;}
+  .row + .row{border-top:1px solid rgba(255,255,255,.045);}
+  .row .label{flex:1;font-size:clamp(12px,1.85vw,14px);color:#cfc8d6;
+    display:flex;flex-direction:column;gap:1px;min-width:0;}
+  .row .label b{font-weight:700;color:#e8e2d8;}
+  .row .label small{color:#7a7484;font-size:11px;line-height:1.4;}
+  .toggle{position:relative;width:52px;height:28px;flex-shrink:0;cursor:pointer;
+    border-radius:999px;background:rgba(255,255,255,.12);transition:background .2s;
+    border:1px solid rgba(255,255,255,.1);}
+  .toggle.on{background:linear-gradient(180deg,#ff5b6c,#c8122c);border-color:rgba(255,90,110,.5);}
+  .toggle::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;
+    border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 2px 6px rgba(0,0,0,.4);}
+  .toggle.on::after{transform:translateX(24px);}
+  .slider-wrap{display:flex;align-items:center;gap:10px;flex:1;max-width:220px;min-width:100px;}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:5px;
+    border-radius:3px;background:rgba(255,255,255,.15);outline:none;cursor:pointer;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+    width:18px;height:18px;border-radius:50%;
+    background:linear-gradient(180deg,#ff8b96,#e0243c);cursor:pointer;
+    box-shadow:0 0 10px rgba(255,60,80,.5);border:2px solid #1a0206;}
+  .slider-val{font-family:monospace;font-size:12px;color:#ff8b96;
+    min-width:44px;text-align:right;font-weight:700;}
+  .seg{display:flex;gap:4px;background:rgba(0,0,0,.35);padding:3px;
+    border-radius:10px;flex-shrink:0;border:1px solid rgba(255,255,255,.08);}
+  .seg button{padding:6px 12px;border:none;border-radius:7px;background:transparent;
+    color:#a9a2b0;cursor:pointer;font-family:inherit;font-weight:700;
+    font-size:11.5px;transition:all .15s;white-space:nowrap;}
+  .seg button.active{background:linear-gradient(180deg,#ff5b6c,#c8122c);color:#fff;
+    box-shadow:0 2px 8px rgba(255,60,80,.4);}
+  .presets{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));
+    gap:8px;margin-top:6px;}
+  .preset{padding:12px 10px;border-radius:12px;cursor:pointer;border:2px solid transparent;
+    background:rgba(255,255,255,.05);text-align:center;font-family:inherit;
+    font-weight:700;color:#cfc8d6;transition:all .15s;
+    display:flex;flex-direction:column;gap:3px;align-items:center;}
+  .preset:hover{background:rgba(255,255,255,.1);transform:translateY(-2px);}
+  .preset.active{border-color:#ff5b6c;background:rgba(255,60,80,.15);
+    color:#ff8b96;box-shadow:0 0 20px rgba(255,60,80,.25);}
+  .preset .name{font-size:13px;}
+  .preset .desc{font-size:10px;opacity:.75;font-weight:400;}
+  #setFooter{position:absolute;bottom:0;left:0;right:0;padding:12px 22px;
+    display:flex;justify-content:space-between;gap:10px;
+    background:linear-gradient(0deg,rgba(6,2,10,.98),rgba(6,2,10,.7));
+    border-top:1px solid rgba(255,255,255,.08);}
+  #setFooter button{padding:11px 26px;border-radius:10px;cursor:pointer;
+    font-family:inherit;font-weight:700;font-size:13px;transition:all .15s;}
+  #setReset{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);color:#cfc8d6;}
+  #setReset:hover{background:rgba(255,255,255,.12);}
+  #setApply{background:linear-gradient(180deg,#2fbf6a,#1d8a49);border:none;color:#fff;
+    box-shadow:0 4px 20px rgba(47,191,106,.4);}
+  #setApply:hover{transform:translateY(-2px);}
+  #gearBtn{position:absolute;top:max(52px, calc(env(safe-area-inset-top, 0px) + 48px));
+    right:max(16px, env(safe-area-inset-right, 16px));z-index:12;width:38px;height:38px;
+    border-radius:10px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.25);
+    color:#e8e2d8;font-size:18px;cursor:pointer;display:flex;align-items:center;
+    justify-content:center;transition:all .15s;}
+  #gearBtn:hover{background:rgba(0,0,0,.85);transform:rotate(45deg);}
+
+  #rotate{display:none;position:fixed;inset:0;z-index:9999;
+    background:radial-gradient(circle at center,#1a0612,#000);
+    flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;gap:14px;padding:30px;color:#e8e2d8;}
+  #rotate .ph{font-size:78px;line-height:1;animation:rot 2s ease-in-out infinite;color:#ff4d5e;}
+  @keyframes rot{0%,40%{transform:rotate(0);}60%,100%{transform:rotate(90deg);}}
+  #rotate h2{font-size:22px;color:#ff4d5e;}
+  #rotate p{color:#a9a2b0;font-size:14px;max-width:320px;line-height:1.7;}
+  #rotate button{margin-top:10px;padding:10px 26px;border-radius:999px;
+    background:linear-gradient(180deg,#ff6b7a,#e0243c);border:none;color:#fff;
+    font-family:inherit;font-weight:700;font-size:15px;cursor:pointer;}
+  @media (orientation:portrait){#rotate{display:flex;}#app{display:none;}}
+</style>
+<!-- Load Three.js offline bundle -->
+<script src="three.min.js"></script>
+<script>
+  if (typeof THREE === 'undefined') {
+    document.write('<script src="https://unpkg.com/three@0.160.0/build/three.min.js"><\/script>');
+  }
+</script>
+</head>
+<body>
+
+<div id="rotate">
+  <div class="ph">📱</div>
+  <h2>ডিভাইস ঘোরান</h2>
+  <p>খেলাটি ল্যান্ডস্কেপে চলবে। ফোন ঘোরালে স্বয়ংক্রিয়ভাবে চালু হবে।</p>
+  <button id="rotateBtn">ঘোরানোর চেষ্টা করো</button>
+</div>
+
+<div id="app">
+  <canvas id="scene"></canvas>
+  <div id="vignette"></div>
+  <div id="pulse"></div>
+  <div id="noiseRing"></div>
+  <div id="fearOverlay"></div>
+  <div id="damage"></div>
+  <div id="jumpscare"><canvas id="jumpscareCanvas"></canvas></div>
+
+  <div id="hud">
+    <div id="hudLeft">
+      <span id="hudTime">00:00</span>
+      <span id="hudBpm">♥ -- BPM</span>
+      <span id="hudFps">-- FPS</span>
+    </div>
+    <div id="hudRight">
+      <span id="hudLives">♥♥♥</span>
+      <button id="pauseBtn">⏸</button>
+    </div>
+  </div>
+
+  <div id="noiseBar"><span class="icon">🔊</span><div id="noiseBarFill"></div></div>
+
+  <div id="inventory">
+    <div class="slot empty" id="invKey">🔑<span class="count" id="invKeyCount">0</span></div>
+    <div class="slot empty" id="invHammer">🔨</div>
+    <div class="slot empty" id="invWrench">🔧</div>
+  </div>
+
+  <div id="msg"></div>
+  <div id="crosshair"></div>
+  <div id="searchProgress"><div id="searchProgressFill"></div></div>
+  <div id="searchLabel">সার্চ করছি...</div>
+
+  <div id="joy"><div id="joyKnob"></div></div>
+  <div id="runBtn" class="actionBtn">🏃<span class="lbl">RUN</span></div>
+  <div id="hideBtn" class="actionBtn">🫣<span class="lbl">HIDE</span></div>
+  <div id="actionBtn" class="actionBtn">🔍<span class="lbl">SEARCH</span></div>
+  <div id="hint" class="hidden">চালিয়ে যেতে ক্লিক করুন</div>
+
+  <button id="gearBtn">⚙</button>
+
+  <div id="screen" class="overlay"></div>
+
+  <div id="intro">
+    <div id="introBg"></div>
+    <div id="introProgress"><div id="introProgressBar"></div></div>
+    <div id="introStage"></div>
+    <div id="introDots"></div>
+    <button id="introSkip">এড়িয়ে যাও ⏭</button>
+  </div>
+
+  <div id="settings">
+    <div id="setHeader"><h2>⚙ সেটিংস</h2><button class="closeBtn" id="setClose">✕</button></div>
+    <div id="setTabs">
+      <div class="setTab active" data-tab="graphics">🎨 গ্রাফিক্স</div>
+      <div class="setTab" data-tab="audio">🔊 অডিও</div>
+      <div class="setTab" data-tab="gameplay">🎮 গেমপ্লে</div>
+      <div class="setTab" data-tab="ui">🖥 ইন্টারফেস</div>
+    </div>
+    <div id="setBody">
+      <div class="tab-panel active" data-panel="graphics">
+        <div class="setSection">
+          <h3><span class="dot"></span>কুয়ালিটি প্রিসেট</h3>
+          <div class="presets">
+            <button class="preset" data-quality="ultra"><span class="name">আল্ট্রা</span><span class="desc">সেরা</span></button>
+            <button class="preset" data-quality="high"><span class="name">হাই</span><span class="desc">ভালো</span></button>
+            <button class="preset" data-quality="medium"><span class="name">মিডিয়াম</span><span class="desc">ব্যালেন্সড</span></button>
+            <button class="preset" data-quality="low"><span class="name">লো</span><span class="desc">দ্রুত</span></button>
+            <button class="preset" data-quality="vlow"><span class="name">ভেরি লো</span><span class="desc">সর্বোচ্চ FPS</span></button>
+          </div>
+        </div>
+        <div class="setSection">
+          <h3><span class="dot"></span>রেন্ডারিং</h3>
+          <div class="row"><div class="label"><b>Pixel Ratio</b></div>
+            <div class="slider-wrap"><input type="range" id="setPixelRatio" min="0.5" max="2" step="0.05" value="1.2"><span class="slider-val" id="valPixelRatio">1.20</span></div></div>
+          <div class="row"><div class="label"><b>Anti-Aliasing</b></div><div class="toggle" id="setAntialias"></div></div>
+          <div class="row"><div class="label"><b>টোন ম্যাপিং</b></div><div class="toggle" id="setToneMapping"></div></div>
+          <div class="row"><div class="label"><b>ছায়া</b></div><div class="toggle" id="setShadows"></div></div>
+          <div class="row"><div class="label"><b>অ্যাডাপ্টিভ রেজোলিউশন</b></div><div class="toggle" id="setAdaptive"></div></div>
+        </div>
+        <div class="setSection">
+          <h3><span class="dot"></span>দৃশ্যমানতা</h3>
+          <div class="row"><div class="label"><b>FOV</b></div>
+            <div class="slider-wrap"><input type="range" id="setFov" min="60" max="100" step="2" value="76"><span class="slider-val" id="valFov">76°</span></div></div>
+          <div class="row"><div class="label"><b>ফগ Far</b></div>
+            <div class="slider-wrap"><input type="range" id="setFogFar" min="15" max="80" step="2" value="42"><span class="slider-val" id="valFogFar">42</span></div></div>
+          <div class="row"><div class="label"><b>ফগ Near</b></div>
+            <div class="slider-wrap"><input type="range" id="setFogNear" min="3" max="25" step="1" value="10"><span class="slider-val" id="valFogNear">10</span></div></div>
+        </div>
+        <div class="setSection">
+          <h3><span class="dot"></span>এফেক্ট</h3>
+          <div class="row"><div class="label"><b>চুলের স্ট্র্যান্ড</b></div>
+            <div class="slider-wrap"><input type="range" id="setHairStrands" min="0" max="24" step="2" value="12"><span class="slider-val" id="valHairStrands">12</span></div></div>
+          <div class="row"><div class="label"><b>রক্তের ফোঁটা</b></div><div class="toggle" id="setBloodDrops"></div></div>
+          <div class="row"><div class="label"><b>আভা</b></div><div class="toggle" id="setAura"></div></div>
+          <div class="row"><div class="label"><b>Vignette</b></div><div class="toggle" id="setVignette"></div></div>
+        </div>
+        <div class="setSection">
+          <h3><span class="dot"></span>অডভান্সড</h3>
+          <div class="row"><div class="label"><b>ভুতের পয়েন্ট লাইট</b></div><div class="toggle" id="setGhostLight"></div></div>
+          <div class="row"><div class="label"><b>প্লেয়ার লাইট</b></div><div class="toggle" id="setPlayerLight"></div></div>
+          <div class="row"><div class="label"><b>টেক্সচার কোয়ালিটি</b></div>
+            <div class="seg" id="setTexQuality">
+              <button data-v="high">হাই</button><button data-v="med">মিড</button><button data-v="low">লো</button>
+            </div></div>
+        </div>
+      </div>
+      <div class="tab-panel" data-panel="audio">
+        <div class="setSection">
+          <h3><span class="dot"></span>ভলিউম</h3>
+          <div class="row"><div class="label"><b>মাস্টার</b></div>
+            <div class="slider-wrap"><input type="range" id="setMasterVol" min="0" max="100" step="1" value="100"><span class="slider-val" id="valMasterVol">100%</span></div></div>
+          <div class="row"><div class="label"><b>SFX</b></div>
+            <div class="slider-wrap"><input type="range" id="setSfxVol" min="0" max="100" step="1" value="100"><span class="slider-val" id="valSfxVol">100%</span></div></div>
+          <div class="row"><div class="label"><b>হার্টবিট</b></div>
+            <div class="slider-wrap"><input type="range" id="setHeartVol" min="0" max="100" step="1" value="100"><span class="slider-val" id="valHeartVol">100%</span></div></div>
+          <div class="row"><div class="label"><b>পায়ের শব্দ</b></div>
+            <div class="slider-wrap"><input type="range" id="setFootstepVol" min="0" max="100" step="1" value="100"><span class="slider-val" id="valFootstepVol">100%</span></div></div>
+          <div class="row"><div class="label"><b>ফিসফিস</b></div>
+            <div class="slider-wrap"><input type="range" id="setWhisperVol" min="0" max="100" step="1" value="100"><span class="slider-val" id="valWhisperVol">100%</span></div></div>
+          <div class="row"><div class="label"><b>সম্পূর্ণ মিউট</b></div><div class="toggle" id="setMute"></div></div>
+        </div>
+      </div>
+      <div class="tab-panel" data-panel="gameplay">
+        <div class="setSection">
+          <h3><span class="dot"></span>ইনপুট</h3>
+          <div class="row"><div class="label"><b>মাউস সেনসিটিভিটি</b></div>
+            <div class="slider-wrap"><input type="range" id="setSens" min="0.5" max="3" step="0.1" value="1"><span class="slider-val" id="valSens">1.0x</span></div></div>
+          <div class="row"><div class="label"><b>টাচ সেনসিটিভিটি</b></div>
+            <div class="slider-wrap"><input type="range" id="setTouchSens" min="0.5" max="3" step="0.1" value="1"><span class="slider-val" id="valTouchSens">1.0x</span></div></div>
+          <div class="row"><div class="label"><b>Y-axis ইনভার্ট</b></div><div class="toggle" id="setInvertY"></div></div>
+          <div class="row"><div class="label"><b>টগল রান</b></div><div class="toggle" id="setToggleRun"></div></div>
+        </div>
+        <div class="setSection">
+          <h3><span class="dot"></span>ডিফল্ট কঠিনতা</h3>
+          <div class="row"><div class="label"><b>মোড</b></div>
+            <div class="seg" id="setDifficulty">
+              <button data-v="easy">সহজ</button><button data-v="medium">মাঝারি</button><button data-v="hard">কঠিন</button>
+            </div></div>
+        </div>
+      </div>
+      <div class="tab-panel" data-panel="ui">
+        <div class="setSection">
+          <h3><span class="dot"></span>HUD</h3>
+          <div class="row"><div class="label"><b>FPS</b></div><div class="toggle" id="setShowFps"></div></div>
+          <div class="row"><div class="label"><b>BPM</b></div><div class="toggle" id="setShowBpm"></div></div>
+          <div class="row"><div class="label"><b>টাইমার</b></div><div class="toggle" id="setShowTimer"></div></div>
+          <div class="row"><div class="label"><b>ইনভেন্টরি</b></div><div class="toggle" id="setShowInventory"></div></div>
+        </div>
+        <div class="setSection">
+          <h3><span class="dot"></span>ক্রসহেয়ার</h3>
+          <div class="row"><div class="label"><b>দেখাও</b></div><div class="toggle" id="setShowCrosshair"></div></div>
+          <div class="row"><div class="label"><b>সাইজ</b></div>
+            <div class="slider-wrap"><input type="range" id="setChSize" min="2" max="20" step="1" value="6"><span class="slider-val" id="valChSize">6</span></div></div>
+          <div class="row"><div class="label"><b>অপাসিটি</b></div>
+            <div class="slider-wrap"><input type="range" id="setChOpacity" min="0.1" max="1" step="0.05" value="0.6"><span class="slider-val" id="valChOpacity">0.60</span></div></div>
+        </div>
+        <div class="setSection">
+          <h3><span class="dot"></span>ইফেক্ট</h3>
+          <div class="row"><div class="label"><b>স্ক্রিন শেক</b></div><div class="toggle" id="setScreenShake"></div></div>
+          <div class="row"><div class="label"><b>হার্টবিট পালস</b></div><div class="toggle" id="setHeartPulse"></div></div>
+        </div>
+        <div class="setSection">
+          <h3><span class="dot"></span>কনটেন্ট</h3>
+          <div class="row"><div class="label"><b>গল্প আবার দেখাও</b></div>
+            <button class="preset" id="setReplayStory" style="padding:8px 16px;min-width:auto;flex-direction:row;">
+              <span class="name">▶ চালাও</span></button></div>
+        </div>
+      </div>
+    </div>
+    <div id="setFooter"><button id="setReset">↺ রিসেট</button><button id="setApply">✓ প্রয়োগ করো</button></div>
+  </div>
+</div>
+
+<script>
+// Main game script using global THREE
+(function(){
+  const THREE = window.THREE;
+  if (!THREE) {
+    console.error("Three.js failed to load!");
+    return;
+  }
+
+/* ============================================================
+   AUTO LANDSCAPE & NATIVE INTEGRATION
+   ============================================================ */
+function tryLockLandscape(){
+  try {
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(()=>{});
+    }
+  } catch(e){}
+}
+document.addEventListener('touchstart', tryLockLandscape, {once:true});
+document.addEventListener('click', tryLockLandscape, {once:true});
+document.getElementById('rotateBtn').addEventListener('click', tryLockLandscape);
+
+// Haptic feedback helper
+function vibe(ms){
+  try {
+    if (window.AndroidBridge && window.AndroidBridge.vibrate) {
+      window.AndroidBridge.vibrate(ms);
+    } else if (navigator.vibrate) {
+      navigator.vibrate(ms);
+    }
+  } catch(e){}
+}
+function pulseVibe(intensity){
+  try {
+    if (window.AndroidBridge && window.AndroidBridge.triggerHeartbeatVibe) {
+      window.AndroidBridge.triggerHeartbeatVibe(intensity);
+    } else if (navigator.vibrate && intensity > 0.4) {
+      navigator.vibrate(Math.round(20 + intensity * 40));
+    }
+  } catch(e){}
+}
+function scareVibe(){
+  try {
+    if (window.AndroidBridge && window.AndroidBridge.triggerJumpscareVibe) {
+      window.AndroidBridge.triggerJumpscareVibe();
+    } else if (navigator.vibrate) {
+      navigator.vibrate([100, 50, 150, 50, 250]);
+    }
+  } catch(e){}
+}
+
+/* ============================================================
+   INTRO STORY
+   ============================================================ */
+const INTRO_SLIDES = [
+  { icon:'🏠', title:'একটি ছোট্ট সংসার', text:'তুমি আর তোমার বৌ — দুজন মিলে ছিলে এক ছোট্ট বাড়িতে।\nসুখে, শান্তিতে দিন কাটছিল।' },
+  { icon:'🌙', title:'এক অমাবস্যার রাতে', text:'সেদিন রাতে অদ্ভুত কিছু ঘটলো...\nদরজা নিজে নিজে বন্ধ হয়ে গেল,\nহঠাৎ বাতি নিভে গেল।' },
+  { icon:'👰', title:'অশুভ আত্মা', text:'এক অশুভ আত্মা ঢুকে পড়লো তোমার বৌয়ের শরীরে।\nতার চোখ দুটো লাল হয়ে গেল,\nমুখ বিকৃত হয়ে গেল।', quote:'"তুমি কোথাও যাবে না... চিরকাল এখানে থাকবে!"' },
+  { icon:'🏚', title:'বিশাল বাড়ি', text:'তোমার বাড়িটা এখন বিশাল এক অন্ধকার গোলকধাঁধা।\n১৫টি ঘর, লম্বা করিডোর,\nপ্রতিটি কোণে অন্ধকার লুকিয়ে আছে।' },
+  { icon:'📦', title:'লুকানো জিনিস', text:'সব চাবি-হাতুড়ি-রেঞ্চ বাক্সে-আলমারিতে লুকানো আছে।\nপ্রতিটি সার্চ করলে শব্দ হবে —\nতাই দ্রুত করো, তারপর সরে যাও।' },
+  { icon:'🔊', title:'শব্দ শুনলেই আসে', text:'ভুতের কান খুব তীক্ষ্ণ।\nতুমি দৌড়ালে, জিনিস সার্চ করলে —\nসে শুনে ফেলবে আর ছুটে আসবে।', quote:'"চুপ... একদম চুপ!"' },
+  { icon:'⚠️', title:'সাবধান!', text:'ভুত তোমাকে দেখলে বা শুনলে ধরে ফেলবে।\nলুকাও, চুপে চলো, দরকারে দৌড়াও।\n৩ বার ধরা পড়লে — চিরকালের জন্য আটকে যাবে।' }
+];
+
+/* ============================================================
+   SETTINGS
+   ============================================================ */
+const DEFAULT_SETTINGS = {
+  quality:'high', pixelRatio:1.0, antialias:false, toneMapping:false,
+  shadows:false, adaptive:true, fov:76, fogFar:40, fogNear:10,
+  hairStrands:8, bloodDrops:true, aura:true, vignette:true,
+  ghostLight:true, playerLight:true, texQuality:'med',
+  masterVol:100, sfxVol:100, heartVol:100, footstepVol:100, whisperVol:100, mute:false,
+  sensitivity:1, touchSensitivity:1, invertY:false, toggleRun:false, defaultDifficulty:'medium',
+  showFps:true, showBpm:true, showTimer:true, showInventory:true,
+  showCrosshair:true, chSize:6, chOpacity:0.6, screenShake:true, heartPulse:true
+};
+const QUALITY_PRESETS = {
+  ultra:{pixelRatio:1.75,antialias:true,toneMapping:true,shadows:false,fov:78,fogFar:60,fogNear:8,hairStrands:20,bloodDrops:true,aura:true,vignette:true,ghostLight:true,playerLight:true,texQuality:'high',adaptive:false},
+  high:{pixelRatio:1.25,antialias:false,toneMapping:false,shadows:false,fov:76,fogFar:48,fogNear:10,hairStrands:12,bloodDrops:true,aura:true,vignette:true,ghostLight:true,playerLight:true,texQuality:'high',adaptive:true},
+  medium:{pixelRatio:1.0,antialias:false,toneMapping:false,shadows:false,fov:76,fogFar:40,fogNear:10,hairStrands:8,bloodDrops:true,aura:true,vignette:true,ghostLight:true,playerLight:true,texQuality:'med',adaptive:true},
+  low:{pixelRatio:0.8,antialias:false,toneMapping:false,shadows:false,fov:76,fogFar:30,fogNear:7,hairStrands:4,bloodDrops:false,aura:true,vignette:false,ghostLight:true,playerLight:true,texQuality:'low',adaptive:true},
+  vlow:{pixelRatio:0.65,antialias:false,toneMapping:false,shadows:false,fov:72,fogFar:24,fogNear:5,hairStrands:0,bloodDrops:false,aura:false,vignette:false,ghostLight:false,playerLight:false,texQuality:'low',adaptive:false}
+};
+let S = loadSettings();
+function loadSettings(){try{const r=localStorage.getItem('boubhut_settings');if(r)return Object.assign({},DEFAULT_SETTINGS,JSON.parse(r));}catch(e){}return Object.assign({},DEFAULT_SETTINGS);}
+function saveSettings(){try{localStorage.setItem('boubhut_settings',JSON.stringify(S));}catch(e){}}
+
+/* ================= কনস্ট্যান্ট ================= */
+const TILE=2, COLS=52, ROWS=34;
+const WALL_H=3.4, EYE=1.62;
+const WORLD_W=COLS*TILE, WORLD_D=ROWS*TILE;
+const PLAYER_R=0.38, GHOST_R=0.52;
+const SPEED_WALK=3.4, SPEED_RUN=5.4;
+const DIFF = {
+  easy:{lives:5,patrol:1.7,chase:2.5,sight:11,memory:3.5,hearing:0.9,name:'সহজ'},
+  medium:{lives:3,patrol:2.2,chase:3.3,sight:15,memory:5.5,hearing:1.1,name:'মাঝারি'},
+  hard:{lives:2,patrol:3.0,chase:4.4,sight:20,memory:9.0,hearing:1.4,name:'কঠিন'}
+};
+
+/* ================= ম্যাপ ================= */
+const map=[];
+for(let y=0;y<ROWS;y++) map.push(new Array(COLS).fill(0));
+function hWall(y,x1,x2){for(let x=x1;x<=x2;x++)if(y>=0&&y<ROWS&&x>=0&&x<COLS)map[y][x]=1;}
+function vWall(x,y1,y2){for(let y=y1;y<=y2;y++)if(y>=0&&y<ROWS&&x>=0&&x<COLS)map[y][x]=1;}
+
+hWall(0,0,COLS-1); hWall(ROWS-1,0,COLS-1);
+vWall(0,0,ROWS-1); vWall(COLS-1,0,ROWS-1);
+
+vWall(11,1,7); vWall(18,1,7); vWall(26,1,7); vWall(36,1,7); vWall(44,1,7);
+hWall(8,1,COLS-2);
+vWall(15,12,22); vWall(25,12,22); vWall(37,12,22); vWall(47,12,22);
+hWall(11,1,COLS-2);
+hWall(23,1,COLS-2);
+vWall(14,27,32); vWall(26,27,32); vWall(39,27,32);
+hWall(26,1,COLS-2);
+
+const EXITS = [
+  {id:'door',   tx:51, ty:17,    tile:2, needs:'keys',   needCount:3, name:'প্রধান দরজা'},
+  {id:'window', tx:22, ty:0,     tile:3, needs:'hammer', needCount:1, name:'জানালা'},
+  {id:'gate',   tx:20, ty:33,    tile:4, needs:'wrench', needCount:1, name:'পিছনের গেট'}
+];
+EXITS.forEach(e => { map[e.ty][e.tx] = e.tile; });
+
+const DOOR_CELLS = [
+  [5,8],[14,8],[22,8],[31,8],[40,8],[47,8],
+  [7,11],[20,11],[31,11],[42,11],[49,11],
+  [7,23],[20,23],[31,23],[42,23],[49,23],
+  [7,26],[20,26],[32,26],[45,26],
+  [11,4],[18,6],[26,3],[36,5],[44,3],
+  [15,17],[25,17],[37,17],[47,17],
+  [14,29],[26,29],[39,29]
+];
+DOOR_CELLS.forEach(([x,y]) => { if(y>=0 && y<ROWS && x>=0 && x<COLS) map[y][x] = 0; });
+
+const SEARCHABLES = [
+  { tx:3,  ty:3,  contains:'key',    searchTime:2.4 },
+  { tx:14, ty:2,  contains:'empty',  searchTime:1.8 },
+  { tx:30, ty:3,  contains:'key',    searchTime:2.2 },
+  { tx:40, ty:3,  contains:'empty',  searchTime:1.8 },
+  { tx:47, ty:3,  contains:'hammer', searchTime:2.2 },
+  { tx:5,  ty:17, contains:'empty',  searchTime:1.8 },
+  { tx:10, ty:20, contains:'key',    searchTime:2.8 },
+  { tx:20, ty:15, contains:'empty',  searchTime:1.8 },
+  { tx:31, ty:18, contains:'wrench', searchTime:2.4 },
+  { tx:42, ty:18, contains:'empty',  searchTime:1.8 },
+  { tx:5,  ty:29, contains:'empty',  searchTime:1.8 },
+  { tx:18, ty:29, contains:'empty',  searchTime:2.2 },
+  { tx:30, ty:29, contains:'empty',  searchTime:2.0 },
+  { tx:45, ty:29, contains:'empty',  searchTime:1.8 }
+];
+const SEARCHABLE_LABELS = [
+  'পুরনো সিন্দুক','স্নানের আলমারি','কাঠের বাক্স','পোশাকের বাক্স','রান্নাঘরের ড্রয়ার',
+  'পুরনো বাক্স','লোহার সিন্দুক','কাঠের বাক্স','টুলবক্স','মাটির পাত্র',
+  'ধুলোর বাক্স','লোহার সিন্দুক','পুরনো আলমারি','কাঠের বাক্স'
+];
+
+const HIDING_SPOTS=[
+  {type:'wardrobe',tx:4, ty:5},
+  {type:'wardrobe',tx:14,ty:4},
+  {type:'bed',     tx:33,ty:5},
+  {type:'wardrobe',tx:3, ty:20},
+  {type:'wardrobe',tx:30,ty:20},
+  {type:'bed',     tx:42,ty:20},
+  {type:'bed',     tx:18,ty:30},
+  {type:'wardrobe',tx:30,ty:30}
+];
+
+const OBSTACLE_POSITIONS = [
+  [2,2],[6,2],[2,6],[7,6],[12,5],[16,5],[20,3],[24,3],[20,6],[24,6],
+  [28,2],[34,2],[28,6],[34,6],[38,2],[42,2],[38,6],[42,6],
+  [45,2],[50,2],[45,6],[50,6],
+  [2,13],[7,13],[12,13],[2,16],[7,19],[12,16],[2,22],[7,22],[12,22],
+  [17,13],[22,13],[16,18],[23,18],[17,22],[22,22],
+  [27,13],[33,13],[36,13],[27,22],[33,22],[36,22],
+  [39,13],[44,13],[46,13],[39,22],[44,22],[46,22],
+  [49,13],[49,22],
+  [2,27],[10,27],[8,29],[2,32],[10,32],
+  [16,27],[22,27],[16,32],[22,32],
+  [28,27],[35,27],[28,32],[35,32],
+  [41,27],[48,27],[41,32],[48,32],
+  [4,9],[15,9],[28,10],[39,9],[47,10],
+  [4,24],[17,25],[28,24],[40,25],[48,24]
+];
+
+const reserved = new Set();
+reserved.add('3,3'); reserved.add('26,17');
+SEARCHABLES.forEach(s => reserved.add(s.tx + ',' + s.ty));
+HIDING_SPOTS.forEach(h => reserved.add(h.tx + ',' + h.ty));
+DOOR_CELLS.forEach(([x,y]) => reserved.add(x + ',' + y));
+EXITS.forEach(e => reserved.add(e.tx + ',' + e.ty));
+reserved.add('50,17'); reserved.add('22,1'); reserved.add('20,32');
+
+OBSTACLE_POSITIONS.forEach(([x,y]) => {
+  if (reserved.has(x + ',' + y)) return;
+  if (y >= 0 && y < ROWS && x >= 0 && x < COLS && map[y][x] === 0) map[y][x] = 5;
+});
+
+/* ================= রেন্ডারার ================= */
+const canvas = document.getElementById('scene');
+const isMobile = true;
+const renderer = new THREE.WebGLRenderer({
+  canvas, antialias: S.antialias, powerPreference:'high-performance',
+  stencil:false, depth:true, alpha:false, logarithmicDepthBuffer:false
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, S.pixelRatio));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.info.autoReset = false;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x08080f);
+scene.fog = new THREE.Fog(0x08080f, S.fogNear, S.fogFar);
+const camera = new THREE.PerspectiveCamera(S.fov, window.innerWidth/window.innerHeight, 0.1, 120);
+camera.rotation.order='YXZ';
+scene.add(camera);
+
+/* ================= টেক্সচার ================= */
+function cnv(s){const c=document.createElement('canvas');c.width=c.height=s;return c;}
+function tex(c){const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=1;t.generateMipmaps=false;t.minFilter=THREE.LinearFilter;return t;}
+
+function buildFloorTex(size){
+  const c=cnv(size),x=c.getContext('2d');
+  x.fillStyle='#1e1610'; x.fillRect(0,0,size,size);
+  const p=4, ph=size/p;
+  for(let i=0;i<p;i++){
+    x.fillStyle=`hsl(28,26%,${15+Math.random()*10}%)`;
+    x.fillRect(0,i*ph,size,ph-1);
+    for(let g=0;g<8;g++){
+      x.strokeStyle=`rgba(0,0,0,${0.06+Math.random()*0.14})`;
+      x.lineWidth=1; const y=i*ph+Math.random()*ph;
+      x.beginPath(); x.moveTo(0,y); x.lineTo(size,y); x.stroke();
+    }
+    x.fillStyle='rgba(0,0,0,.55)'; x.fillRect(0,i*ph+ph-1,size,1);
+  }
+  for (let i = 0; i < 3; i++){
+    x.fillStyle = `rgba(60,4,8,${0.25+Math.random()*0.3})`;
+    const cx = Math.random()*size, cy = Math.random()*size;
+    x.beginPath();
+    x.ellipse(cx, cy, Math.random()*size/8+4, Math.random()*size/10+3, Math.random()*Math.PI, 0, Math.PI*2);
+    x.fill();
+  }
+  const t=tex(c); t.repeat.set(COLS/2,ROWS/2); return t;
+}
+function buildWallTex(size){
+  const c=cnv(size),x=c.getContext('2d');
+  x.fillStyle='#2e2721'; x.fillRect(0,0,size,size);
+  for(let i=0;i<4;i++){
+    x.fillStyle=`rgba(70,60,50,${0.22+Math.random()*0.28})`;
+    x.fillRect(i*(size/4)+3,0,size/8,size);
+  }
+  const dots=size*size/300;
+  for(let i=0;i<dots;i++){
+    x.fillStyle=`rgba(0,0,0,${Math.random()*0.25})`;
+    x.fillRect(Math.random()*size,Math.random()*size,Math.random()*4+1,Math.random()*4+1);
+  }
+  for(let i=0;i<7;i++){
+    x.fillStyle=`rgba(70,8,10,${0.35+Math.random()*0.35})`;
+    const cx=Math.random()*size, cy=Math.random()*size;
+    x.beginPath();
+    x.ellipse(cx,cy,Math.random()*size/12+3,Math.random()*size/9+4,Math.random()*Math.PI,0,Math.PI*2);
+    x.fill();
+  }
+  return tex(c);
+}
+
+let floorTex, wallTex;
+function rebuildTextures(){
+  const sz = S.texQuality==='high'?256 : S.texQuality==='med'?128 : 64;
+  if(floorTex) floorTex.dispose();
+  if(wallTex) wallTex.dispose();
+  floorTex = buildFloorTex(sz);
+  wallTex = buildWallTex(sz);
+  if(floor){floor.material.map=floorTex; floor.material.needsUpdate=true;}
+  if(wallMesh){wallMesh.material.map=wallTex; wallMesh.material.needsUpdate=true;}
+}
+
+function makeTerrifyingFace(size){
+  const c=cnv(size),x=c.getContext('2d');
+  const g=x.createRadialGradient(size/2,size/2,0,size/2,size/2,size*0.6);
+  g.addColorStop(0,'#3a0008'); g.addColorStop(0.6,'#1a0004'); g.addColorStop(1,'#000000');
+  x.fillStyle=g; x.fillRect(0,0,size,size);
+  x.strokeStyle='#050306'; x.lineWidth=size*0.008;
+  for(let i=0;i<150;i++){
+    x.beginPath(); const sx=Math.random()*size;
+    x.moveTo(sx,-10);
+    x.bezierCurveTo(sx+(Math.random()-0.5)*size*0.3,size*0.35,sx+(Math.random()-0.5)*size*0.35,size*0.7,sx+(Math.random()-0.5)*size*0.4,size*1.05);
+    x.stroke();
+  }
+  const cx=size*0.5, cy=size*0.55, fw=size*0.28, fh=size*0.42;
+  x.fillStyle='#c4b8b0'; x.beginPath(); x.ellipse(cx,cy,fw,fh,0,0,Math.PI*2); x.fill();
+  const sh=x.createRadialGradient(cx,cy,size*0.05,cx,cy,size*0.35);
+  sh.addColorStop(0,'rgba(0,0,0,0)'); sh.addColorStop(1,'rgba(0,0,0,0.7)');
+  x.fillStyle=sh; x.beginPath(); x.ellipse(cx,cy,fw,fh,0,0,Math.PI*2); x.fill();
+  x.fillStyle='#050005';
+  x.beginPath(); x.ellipse(cx-fw*0.5,cy-fh*0.15,fw*0.42,fh*0.32,0,0,Math.PI*2); x.fill();
+  x.beginPath(); x.ellipse(cx+fw*0.5,cy-fh*0.15,fw*0.42,fh*0.32,0,0,Math.PI*2); x.fill();
+  x.fillStyle='#ff0808'; x.shadowColor='#ff0000'; x.shadowBlur=size*0.06;
+  x.beginPath(); x.arc(cx-fw*0.5,cy-fh*0.15,fw*0.09,0,Math.PI*2); x.fill();
+  x.beginPath(); x.arc(cx+fw*0.5,cy-fh*0.15,fw*0.09,0,Math.PI*2); x.fill();
+  x.shadowBlur=0;
+  x.fillStyle='rgba(150,5,15,0.9)';
+  for(const sx of [cx-fw*0.5,cx+fw*0.5]){
+    for(let i=0;i<2;i++){
+      x.beginPath();
+      x.ellipse(sx,cy+fh*0.1+i*fh*0.24,fw*0.05,fh*0.14,0,0,Math.PI*2);
+      x.fill();
+    }
+  }
+  x.fillStyle='#080002';
+  x.beginPath(); x.ellipse(cx,cy+fh*0.5,fw*0.55,fh*0.35,0,0,Math.PI*2); x.fill();
+  x.fillStyle='#d8cbb8';
+  for(let i=-3;i<=3;i++){
+    const tx=cx+i*fw*0.14;
+    x.beginPath();
+    x.moveTo(tx-fw*0.06,cy+fh*0.3);
+    x.lineTo(tx+fw*0.06,cy+fh*0.3);
+    x.lineTo(tx,cy+fh*0.42);
+    x.closePath(); x.fill();
+  }
+  return c;
+}
+
+function mkGlow(r,g,b){
+  const c=cnv(32),x=c.getContext('2d');
+  const gr=x.createRadialGradient(16,16,0,16,16,16);
+  gr.addColorStop(0,`rgba(${r},${g},${b},1)`);
+  gr.addColorStop(0.35,`rgba(${r},${g},${b},0.4)`);
+  gr.addColorStop(1,`rgba(${r},${g},${b},0)`);
+  x.fillStyle=gr; x.fillRect(0,0,32,32);
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+}
+const glowRed=mkGlow(255,50,60), glowGold=mkGlow(255,200,70), glowBlue=mkGlow(130,210,255),
+      glowOrange=mkGlow(255,150,80), glowGreen=mkGlow(80,255,160), glowDark=mkGlow(120,5,15),
+      glowYellow=mkGlow(255,220,80);
+
+/* ================= লাইট ================= */
+scene.add(new THREE.AmbientLight(0x686880, 2.5));
+scene.add(new THREE.HemisphereLight(0x8a8aa0, 0x1a0e08, 1.15));
+const playerLight = new THREE.PointLight(0xffe0b8, 40, 24, 1.6);
+camera.add(playerLight);
+playerLight.position.set(0,0.1,0);
+
+/* ================= লেভেল ================= */
+const wallGeo = new THREE.BoxGeometry(TILE, WALL_H, TILE);
+const wallMat = new THREE.MeshLambertMaterial({ map: null });
+const wallTiles = [];
+for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) if(map[y][x]===1) wallTiles.push([x,y]);
+const wallMesh = new THREE.InstancedMesh(wallGeo, wallMat, wallTiles.length);
+{ const m=new THREE.Matrix4();
+  wallTiles.forEach(([x,y],i)=>{m.makeTranslation((x+.5)*TILE,WALL_H/2,(y+.5)*TILE);wallMesh.setMatrixAt(i,m);});
+  wallMesh.instanceMatrix.needsUpdate=true;
+  wallMesh.frustumCulled=false;
+}
+scene.add(wallMesh);
+
+/* ============ OBSTACLES ============ */
+const obstacleTiles = [];
+for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) if(map[y][x]===5) obstacleTiles.push([x,y]);
+
+const tableGeo = new THREE.BoxGeometry(TILE*0.75, 0.9, TILE*0.75);
+const tableMat = new THREE.MeshLambertMaterial({ color:0x4a2e14 });
+const tableMesh = new THREE.InstancedMesh(tableGeo, tableMat, obstacleTiles.length);
+const crateGeo = new THREE.BoxGeometry(TILE*0.65, TILE*0.65, TILE*0.65);
+const crateMat = new THREE.MeshLambertMaterial({ color:0x6a4a1e });
+const crateMesh = new THREE.InstancedMesh(crateGeo, crateMat, obstacleTiles.length);
+const barrelGeo = new THREE.CylinderGeometry(TILE*0.32, TILE*0.32, 1.2, 8);
+const barrelMat = new THREE.MeshLambertMaterial({ color:0x2a2a30 });
+const barrelMesh = new THREE.InstancedMesh(barrelGeo, barrelMat, obstacleTiles.length);
+
+{
+  const m = new THREE.Matrix4();
+  let tCount = 0, cCount = 0, bCount = 0;
+  obstacleTiles.forEach(([x,y]) => {
+    const type = (x*7 + y*13) % 3;
+    if (type === 0) {
+      m.makeTranslation((x+.5)*TILE, 0.45, (y+.5)*TILE);
+      tableMesh.setMatrixAt(tCount++, m);
+    } else if (type === 1) {
+      m.makeTranslation((x+.5)*TILE, 0.65, (y+.5)*TILE);
+      crateMesh.setMatrixAt(cCount++, m);
+    } else {
+      m.makeTranslation((x+.5)*TILE, 0.6, (y+.5)*TILE);
+      barrelMesh.setMatrixAt(bCount++, m);
+    }
+  });
+  tableMesh.count = tCount;
+  crateMesh.count = cCount;
+  barrelMesh.count = bCount;
+  tableMesh.instanceMatrix.needsUpdate = true;
+  crateMesh.instanceMatrix.needsUpdate = true;
+  barrelMesh.instanceMatrix.needsUpdate = true;
+  tableMesh.frustumCulled = false;
+  crateMesh.frustumCulled = false;
+  barrelMesh.frustumCulled = false;
+}
+scene.add(tableMesh, crateMesh, barrelMesh);
+
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_W,WORLD_D), new THREE.MeshLambertMaterial({map:null}));
+floor.rotation.x=-Math.PI/2; floor.position.set(WORLD_W/2,0,WORLD_D/2); scene.add(floor);
+
+const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_W,WORLD_D), new THREE.MeshBasicMaterial({color:0x100f18,fog:true}));
+ceiling.rotation.x=Math.PI/2; ceiling.position.set(WORLD_W/2,WALL_H,WORLD_D/2); scene.add(ceiling);
+
+rebuildTextures();
+
+/* ================= EXITS ================= */
+function createExit(exit){
+  const g=new THREE.Group();
+  g.position.set((exit.tx+.5)*TILE,0,(exit.ty+.5)*TILE);
+  const vertical=(exit.ty===0||exit.ty===ROWS-1);
+  if(vertical) g.rotation.y=Math.PI/2;
+  const color=exit.id==='window'?0x2f5a7a: exit.id==='gate'?0x4a4a52:0x7a4a1e;
+  const mat=new THREE.MeshLambertMaterial({color,emissive:0x000000});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(TILE-0.2,WALL_H-0.5,0.28),mat);
+  body.position.y=(WALL_H-0.5)/2+0.05; g.add(body);
+  if(exit.id==='gate'){
+    const bm=new THREE.MeshLambertMaterial({color:0x92929c});
+    for(let i=-2;i<=2;i++){
+      const bar=new THREE.Mesh(new THREE.BoxGeometry(0.10,WALL_H-0.5,0.34),bm);
+      bar.position.set(i*0.36,(WALL_H-0.5)/2+0.05,0); g.add(bar);
+    }
+  }
+  const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowGreen,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:0}));
+  glow.scale.set(4,4,1); glow.position.y=1.4; g.add(glow);
+  scene.add(g);
+  return {group:g,mat,glow};
+}
+const exitMeshes={};
+EXITS.forEach(e=>{exitMeshes[e.id]=createExit(e);});
+
+/* ================= SEARCHABLE MESHES ================= */
+const searchableData = SEARCHABLES.map((s, i) => ({
+  ...s,
+  label: SEARCHABLE_LABELS[i],
+  x: (s.tx + 0.5) * TILE,
+  z: (s.ty + 0.5) * TILE,
+  searched: false,
+  foundItem: null,
+  lidOpen: 0
+}));
+
+const sBodyGeo = new THREE.BoxGeometry(TILE*0.75, 0.9, TILE*0.75);
+const sLidGeo = new THREE.BoxGeometry(TILE*0.78, 0.12, TILE*0.78);
+const sCornerGeo = new THREE.BoxGeometry(0.14, 0.94, 0.14);
+const sLatchGeo = new THREE.BoxGeometry(0.15, 0.15, 0.05);
+
+const sBodyMat = new THREE.MeshLambertMaterial({ color:0x8b6a3a });
+const sLidMat = new THREE.MeshLambertMaterial({ color:0xa57e44 });
+const sCornerMat = new THREE.MeshLambertMaterial({ color:0x4a4a52 });
+const sLatchMat = new THREE.MeshLambertMaterial({ color:0xd4a017, emissive:0x5a3a00 });
+
+const sBodyMesh = new THREE.InstancedMesh(sBodyGeo, sBodyMat, searchableData.length);
+const sLidMesh = new THREE.InstancedMesh(sLidGeo, sLidMat, searchableData.length);
+const sCornerMesh = new THREE.InstancedMesh(sCornerGeo, sCornerMat, searchableData.length * 4);
+const sLatchMesh = new THREE.InstancedMesh(sLatchGeo, sLatchMat, searchableData.length);
+sBodyMesh.frustumCulled = false;
+sLidMesh.frustumCulled = false;
+sCornerMesh.frustumCulled = false;
+sLatchMesh.frustumCulled = false;
+
+const searchableMarkers = [];
+
+{
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const p = new THREE.Vector3();
+  const sc = new THREE.Vector3(1,1,1);
+  const cornerOffsets = [[-0.35,0.45,-0.35],[0.35,0.45,-0.35],[-0.35,0.45,0.35],[0.35,0.45,0.35]];
+
+  searchableData.forEach((s, i) => {
+    p.set(s.x, 0.45, s.z); m.compose(p, q, sc);
+    sBodyMesh.setMatrixAt(i, m);
+    p.set(s.x, 0.92, s.z); m.compose(p, q, sc);
+    sLidMesh.setMatrixAt(i, m);
+    cornerOffsets.forEach(([cx, cy, cz], k) => {
+      p.set(s.x + cx, cy, s.z + cz); m.compose(p, q, sc);
+      sCornerMesh.setMatrixAt(i * 4 + k, m);
+    });
+    p.set(s.x, 0.75, s.z + TILE*0.38); m.compose(p, q, sc);
+    sLatchMesh.setMatrixAt(i, m);
+
+    const marker = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowYellow, blending: THREE.AdditiveBlending,
+      depthWrite: false, transparent: true, opacity: 0.7
+    }));
+    marker.scale.set(1.6, 1.6, 1);
+    marker.position.set(s.x, 1.6, s.z);
+    scene.add(marker);
+    searchableMarkers.push(marker);
+  });
+
+  sBodyMesh.instanceMatrix.needsUpdate = true;
+  sLidMesh.instanceMatrix.needsUpdate = true;
+  sCornerMesh.instanceMatrix.needsUpdate = true;
+  sLatchMesh.instanceMatrix.needsUpdate = true;
+}
+scene.add(sBodyMesh, sLidMesh, sCornerMesh, sLatchMesh);
+
+const _tmpM = new THREE.Matrix4();
+const _tmpQ = new THREE.Quaternion();
+const _tmpP = new THREE.Vector3();
+const _tmpScale = new THREE.Vector3(1,1,1);
+const _tmpEuler = new THREE.Euler();
+
+/* ================= HIDING SPOTS ================= */
+const wardrobeSpots = HIDING_SPOTS.filter(h => h.type === 'wardrobe');
+const bedSpots = HIDING_SPOTS.filter(h => h.type === 'bed');
+
+const wBodyGeo = new THREE.BoxGeometry(1.5,2.8,0.9);
+const wDoorGeo = new THREE.BoxGeometry(0.7,2.6,0.06);
+const wKnobGeo = new THREE.SphereGeometry(0.045,6,5);
+const wBodyMat = new THREE.MeshLambertMaterial({color:0x4a2e14});
+const wDoorMat = new THREE.MeshLambertMaterial({color:0x5a3a1c});
+const wKnobMat = new THREE.MeshLambertMaterial({color:0xe8c060,emissive:0x6a4a00});
+
+const wBodyMesh = new THREE.InstancedMesh(wBodyGeo, wBodyMat, wardrobeSpots.length);
+const wDoorMesh = new THREE.InstancedMesh(wDoorGeo, wDoorMat, wardrobeSpots.length * 2);
+const wKnobMesh = new THREE.InstancedMesh(wKnobGeo, wKnobMat, wardrobeSpots.length * 2);
+wBodyMesh.frustumCulled = false;
+wDoorMesh.frustumCulled = false;
+wKnobMesh.frustumCulled = false;
+
+const bBaseGeo = new THREE.BoxGeometry(2.1,0.55,1.4);
+const bSheetGeo = new THREE.BoxGeometry(2.0,0.28,1.3);
+const bPillowGeo = new THREE.BoxGeometry(0.75,0.16,1.0);
+const bBaseMat = new THREE.MeshLambertMaterial({color:0x3a2414});
+const bSheetMat = new THREE.MeshLambertMaterial({color:0x7a1a24});
+const bPillowMat = new THREE.MeshLambertMaterial({color:0xc8bfae});
+
+const bBaseMesh = new THREE.InstancedMesh(bBaseGeo, bBaseMat, bedSpots.length);
+const bSheetMesh = new THREE.InstancedMesh(bSheetGeo, bSheetMat, bedSpots.length);
+const bPillowMesh = new THREE.InstancedMesh(bPillowGeo, bPillowMat, bedSpots.length);
+bBaseMesh.frustumCulled = false;
+bSheetMesh.frustumCulled = false;
+bPillowMesh.frustumCulled = false;
+
+const hidingObjects = [];
+
+{
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const p = new THREE.Vector3();
+  const sc = new THREE.Vector3(1,1,1);
+
+  wardrobeSpots.forEach((s, i) => {
+    const x = (s.tx+.5)*TILE, z = (s.ty+.5)*TILE;
+    p.set(x, 1.4, z); m.compose(p, q, sc);
+    wBodyMesh.setMatrixAt(i, m);
+    p.set(x - 0.36, 1.4, z + 0.47); m.compose(p, q, sc);
+    wDoorMesh.setMatrixAt(i*2, m);
+    p.set(x + 0.36, 1.4, z + 0.47); m.compose(p, q, sc);
+    wDoorMesh.setMatrixAt(i*2 + 1, m);
+    p.set(x - 0.06, 1.4, z + 0.52); m.compose(p, q, sc);
+    wKnobMesh.setMatrixAt(i*2, m);
+    p.set(x + 0.06, 1.4, z + 0.52); m.compose(p, q, sc);
+    wKnobMesh.setMatrixAt(i*2 + 1, m);
+
+    hidingObjects.push({ ...s, x, z, eyeY: 1.5 });
+  });
+
+  bedSpots.forEach((s, i) => {
+    const x = (s.tx+.5)*TILE, z = (s.ty+.5)*TILE;
+    p.set(x, 0.28, z); m.compose(p, q, sc);
+    bBaseMesh.setMatrixAt(i, m);
+    p.set(x, 0.7, z); m.compose(p, q, sc);
+    bSheetMesh.setMatrixAt(i, m);
+    p.set(x - 0.58, 0.92, z); m.compose(p, q, sc);
+    bPillowMesh.setMatrixAt(i, m);
+
+    hidingObjects.push({ ...s, x, z, eyeY: 0.5 });
+  });
+
+  wBodyMesh.instanceMatrix.needsUpdate = true;
+  wDoorMesh.instanceMatrix.needsUpdate = true;
+  wKnobMesh.instanceMatrix.needsUpdate = true;
+  bBaseMesh.instanceMatrix.needsUpdate = true;
+  bSheetMesh.instanceMatrix.needsUpdate = true;
+  bPillowMesh.instanceMatrix.needsUpdate = true;
+}
+scene.add(wBodyMesh, wDoorMesh, wKnobMesh, bBaseMesh, bSheetMesh, bPillowMesh);
+
+/* ================= বৌ ভুত 3D ================= */
+let ghostMesh = null;
+let ghostHairInstanced = null;
+let ghostBloodDrops = [];
+let ghostAura = { inner:null, outer:null, ground:null, beacon:null };
+let ghostLightRef = null;
+
+function createRealisticWife(){
+  const g = new THREE.Group();
+  const skinMat = new THREE.MeshLambertMaterial({ color:0xe8cdb2, emissive:0x3a1a10 });
+  const skinShadowMat = new THREE.MeshLambertMaterial({ color:0xd4b89c, emissive:0x2a0e08 });
+  const hairMat = new THREE.MeshLambertMaterial({ color:0x1a0f0a });
+  const hairShadowMat = new THREE.MeshLambertMaterial({ color:0x0a0605 });
+  const sariMat = new THREE.MeshLambertMaterial({ color:0x6a0e1a, emissive:0x380008 });
+  const sariBorderMat = new THREE.MeshLambertMaterial({ color:0xd4a017, emissive:0x5a3a00 });
+  const blouseMat = new THREE.MeshLambertMaterial({ color:0x4a0812, emissive:0x280004 });
+  const bloodMat = new THREE.MeshLambertMaterial({ color:0x8a0210, emissive:0x400004 });
+  const lipMat = new THREE.MeshLambertMaterial({ color:0x6a1020, emissive:0x300008 });
+  const eyeHollowMat = new THREE.MeshBasicMaterial({ color:0x000000 });
+  const eyeGlowMat = new THREE.MeshBasicMaterial({ color:0xff0000 });
+  const teethMat = new THREE.MeshLambertMaterial({ color:0xd4c8b4 });
+  const nailMat = new THREE.MeshLambertMaterial({ color:0x1a0305, emissive:0x200000 });
+  const goldMat = new THREE.MeshLambertMaterial({ color:0xf0c020, emissive:0x6a4200 });
+  const beadMat = new THREE.MeshLambertMaterial({ color:0x1a1008 });
+  const bindiMat = new THREE.MeshBasicMaterial({ color:0xc01820 });
+
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.82, 1.45, 14, 1, false), sariMat);
+  skirt.position.y = 0.72; g.add(skirt);
+  const pallu = new THREE.Mesh(new THREE.BoxGeometry(0.42, 1.3, 0.14), sariMat);
+  pallu.position.set(-0.28, 1.85, 0.18); pallu.rotation.z = 0.28; pallu.rotation.x = -0.08; g.add(pallu);
+  const palluBack = new THREE.Mesh(new THREE.BoxGeometry(0.36, 1.1, 0.12), sariMat);
+  palluBack.position.set(-0.15, 1.65, -0.32); palluBack.rotation.z = 0.15; g.add(palluBack);
+  const border = new THREE.Mesh(new THREE.TorusGeometry(0.81, 0.038, 4, 18), sariBorderMat);
+  border.rotation.x = Math.PI/2; border.position.y = 0.02; g.add(border);
+  for (let i = 0; i < 4; i++){
+    const pleat = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.9, 0.06), sariBorderMat);
+    pleat.position.set(-0.12 + i*0.08, 1.15, 0.58); pleat.rotation.x = 0.05; g.add(pleat);
+  }
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.29, 0.42, 0.72, 10), blouseMat);
+  torso.position.y = 1.95; g.add(torso);
+  const waist = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.46, 0.18, 10), sariMat);
+  waist.position.y = 1.62; g.add(waist);
+
+  const upperArmGeo = new THREE.CylinderGeometry(0.062, 0.052, 0.45, 6);
+  const lowerArmGeo = new THREE.CylinderGeometry(0.052, 0.046, 0.48, 6);
+  const armL = new THREE.Group();
+  armL.position.set(-0.4, 2.1, 0); armL.rotation.z = 0.28;
+  const upperL = new THREE.Mesh(upperArmGeo, skinMat); upperL.position.y = -0.22; armL.add(upperL);
+  const foreL = new THREE.Mesh(lowerArmGeo, skinShadowMat); foreL.position.y = -0.68; armL.add(foreL);
+  for (let i = 0; i < 3; i++){
+    const bangle = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 3, 8), goldMat);
+    bangle.position.y = -0.85 + i*0.032; bangle.rotation.x = Math.PI/2; armL.add(bangle);
+  }
+  g.add(armL);
+  const armR = new THREE.Group();
+  armR.position.set(0.4, 2.1, 0); armR.rotation.z = -0.28;
+  const upperR = new THREE.Mesh(upperArmGeo, skinMat); upperR.position.y = -0.22; armR.add(upperR);
+  const foreR = new THREE.Mesh(lowerArmGeo, skinShadowMat); foreR.position.y = -0.68; armR.add(foreR);
+  for (let i = 0; i < 3; i++){
+    const bangle = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 3, 8), goldMat);
+    bangle.position.y = -0.85 + i*0.032; bangle.rotation.x = Math.PI/2; armR.add(bangle);
+  }
+  g.add(armR);
+
+  const nailGeo = new THREE.ConeGeometry(0.018, 0.14, 3);
+  for (const armX of [-0.42, 0.42]){
+    for (let i = 0; i < 3; i++){
+      const nail = new THREE.Mesh(nailGeo, nailMat);
+      nail.position.set(armX + (i-1)*0.04, 1.22, 0.04);
+      nail.rotation.x = Math.PI; g.add(nail);
+    }
+  }
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.115, 0.22, 8), skinMat);
+  neck.position.y = 2.42; g.add(neck);
+
+  const mangalsutra = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.008, 4, 12), beadMat);
+  mangalsutra.position.set(0, 2.33, 0.02); mangalsutra.rotation.x = Math.PI/2 * 0.86; g.add(mangalsutra);
+  const pendant = new THREE.Mesh(new THREE.SphereGeometry(0.024, 6, 5), goldMat);
+  pendant.position.set(0, 2.22, 0.12); pendant.scale.set(1, 1.2, 0.7); g.add(pendant);
+
+  const headGroup = new THREE.Group();
+  headGroup.position.y = 2.72;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.27, 12, 10), skinMat);
+  head.scale.set(0.92, 1.05, 0.95); headGroup.add(head);
+  const jaw = new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 8), skinMat);
+  jaw.position.set(0, -0.14, 0.02); jaw.scale.set(0.9, 0.75, 1.0); headGroup.add(jaw);
+  const chin = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5), skinShadowMat);
+  chin.position.set(0, -0.22, 0.12); chin.scale.set(1, 0.6, 0.8); headGroup.add(chin);
+  const cheekL = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 5), skinMat);
+  cheekL.position.set(-0.15, -0.03, 0.16); cheekL.scale.set(1.1, 0.7, 0.5); headGroup.add(cheekL);
+  const cheekR = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 5), skinMat);
+  cheekR.position.set(0.15, -0.03, 0.16); cheekR.scale.set(1.1, 0.7, 0.5); headGroup.add(cheekR);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.09, 5), skinShadowMat);
+  nose.position.set(0, -0.02, 0.245); nose.rotation.x = Math.PI * 0.55; headGroup.add(nose);
+  const nostrilMat = new THREE.MeshBasicMaterial({ color: 0x2a1008 });
+  const nostrilL = new THREE.Mesh(new THREE.SphereGeometry(0.012, 4, 3), nostrilMat);
+  nostrilL.position.set(-0.022, -0.055, 0.255); headGroup.add(nostrilL);
+  const nostrilR = new THREE.Mesh(new THREE.SphereGeometry(0.012, 4, 3), nostrilMat);
+  nostrilR.position.set(0.022, -0.055, 0.255); headGroup.add(nostrilR);
+  const upperLip = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), lipMat);
+  upperLip.position.set(0, -0.12, 0.24); upperLip.scale.set(1, 0.35, 0.4); headGroup.add(upperLip);
+  const lowerLip = new THREE.Mesh(new THREE.SphereGeometry(0.055, 6, 5), lipMat);
+  lowerLip.position.set(0, -0.155, 0.242); lowerLip.scale.set(1, 0.45, 0.42); headGroup.add(lowerLip);
+  const browGeo = new THREE.BoxGeometry(0.105, 0.013, 0.02);
+  const browL = new THREE.Mesh(browGeo, hairShadowMat);
+  browL.position.set(-0.095, 0.045, 0.225); browL.rotation.z = 0.1; headGroup.add(browL);
+  const browR = new THREE.Mesh(browGeo, hairShadowMat);
+  browR.position.set(0.095, 0.045, 0.225); browR.rotation.z = -0.1; headGroup.add(browR);
+  const socketMat = new THREE.MeshLambertMaterial({ color: 0xb8a088 });
+  const socketL = new THREE.Mesh(new THREE.SphereGeometry(0.062, 8, 6), socketMat);
+  socketL.position.set(-0.095, 0.0, 0.205); socketL.scale.set(1.1, 0.85, 0.5); headGroup.add(socketL);
+  const socketR = new THREE.Mesh(new THREE.SphereGeometry(0.062, 8, 6), socketMat);
+  socketR.position.set(0.095, 0.0, 0.205); socketR.scale.set(1.1, 0.85, 0.5); headGroup.add(socketR);
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.058, 8, 6), eyeHollowMat);
+  eyeL.position.set(-0.095, 0.0, 0.22); eyeL.scale.set(1, 1.05, 0.8); headGroup.add(eyeL);
+  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.058, 8, 6), eyeHollowMat);
+  eyeR.position.set(0.095, 0.0, 0.22); eyeR.scale.set(1, 1.05, 0.8); headGroup.add(eyeR);
+  const pupilGeo = new THREE.SphereGeometry(0.026, 6, 5);
+  const pL = new THREE.Mesh(pupilGeo, eyeGlowMat);
+  pL.position.set(-0.095, 0.0, 0.245); headGroup.add(pL);
+  const pR = new THREE.Mesh(pupilGeo, eyeGlowMat);
+  pR.position.set(0.095, 0.0, 0.245); headGroup.add(pR);
+
+  ghostBloodDrops = [];
+  if (S.bloodDrops){
+    const dropGeo = new THREE.SphereGeometry(0.022, 5, 4);
+    for (const ex of [-0.095, 0.095]){
+      for (let i = 0; i < 2; i++){
+        const drop = new THREE.Mesh(dropGeo, bloodMat);
+        drop.position.set(ex + (Math.random()-0.5)*0.012, -0.06 - i*0.1, 0.22);
+        drop.scale.set(1, 1.8, 0.8);
+        drop.userData.baseY = drop.position.y;
+        drop.userData.phase = Math.random()*Math.PI*2;
+        headGroup.add(drop);
+        ghostBloodDrops.push(drop);
+      }
+    }
+  }
+  const earGeo = new THREE.SphereGeometry(0.038, 6, 5);
+  const earL = new THREE.Mesh(earGeo, skinMat);
+  earL.position.set(-0.245, -0.02, 0.02); earL.scale.set(0.5, 1, 0.7); headGroup.add(earL);
+  const earR = new THREE.Mesh(earGeo, skinMat);
+  earR.position.set(0.245, -0.02, 0.02); earR.scale.set(0.5, 1, 0.7); headGroup.add(earR);
+  for (const ex of [-0.245, 0.245]){
+    const topRing = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.006, 3, 8), goldMat);
+    topRing.position.set(ex, -0.075, 0.02); topRing.rotation.x = Math.PI/2; headGroup.add(topRing);
+    const bell = new THREE.Mesh(new THREE.SphereGeometry(0.022, 5, 4), goldMat);
+    bell.position.set(ex, -0.115, 0.02); bell.scale.set(1, 0.85, 1); headGroup.add(bell);
+  }
+  const bindi = new THREE.Mesh(new THREE.SphereGeometry(0.016, 6, 5), bindiMat);
+  bindi.position.set(0, 0.115, 0.235); bindi.scale.set(1, 1.2, 0.4); headGroup.add(bindi);
+  const sindoor = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.06, 0.015), bindiMat);
+  sindoor.position.set(0, 0.18, 0.19); sindoor.rotation.x = -0.15; headGroup.add(sindoor);
+
+  const mouth = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0x0a0002 }));
+  mouth.position.set(0, -0.14, 0.235); mouth.scale.set(1.15, 1.1, 0.3); headGroup.add(mouth);
+  const toothGeo = new THREE.ConeGeometry(0.014, 0.032, 3);
+  for (let i = -2; i <= 2; i++){
+    const tooth = new THREE.Mesh(toothGeo, teethMat);
+    tooth.position.set(i*0.026, -0.09, 0.252); tooth.rotation.x = Math.PI; headGroup.add(tooth);
+    const tooth2 = new THREE.Mesh(toothGeo, teethMat);
+    tooth2.position.set(i*0.026, -0.19, 0.252); headGroup.add(tooth2);
+  }
+  const stitchMat = new THREE.MeshBasicMaterial({ color: 0x1a0206 });
+  const stitchGeo = new THREE.BoxGeometry(0.006, 0.13, 0.006);
+  for (let i = -2; i <= 2; i++){
+    const st = new THREE.Mesh(stitchGeo, stitchMat);
+    st.position.set(i*0.032, -0.14, 0.256); headGroup.add(st);
+  }
+  g.add(headGroup);
+
+  const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.31, 12, 10), hairMat);
+  hairCap.position.set(0, 2.75, -0.02); hairCap.scale.set(1.03, 1.05, 1.08); g.add(hairCap);
+  const partLine = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.32, 0.02), hairShadowMat);
+  partLine.position.set(0, 2.85, 0.24); partLine.rotation.x = -0.15; g.add(partLine);
+
+  const faceFrameGeo = new THREE.CylinderGeometry(0.014, 0.02, 0.5, 3);
+  for (let i = 0; i < 4; i++){
+    const side = i < 2 ? -1 : 1;
+    const idx = i % 2;
+    const strand = new THREE.Mesh(faceFrameGeo, hairMat);
+    strand.position.set(side * (0.26 + idx*0.03), 2.55 - idx*0.08, 0.18);
+    strand.rotation.z = side * (0.15 + idx*0.08);
+    strand.rotation.x = -0.08;
+    g.add(strand);
+  }
+
+  const strandCount = Math.max(0, Math.min(24, S.hairStrands));
+  const strandData = [];
+  if (strandCount > 0){
+    const hairStrandGeo = new THREE.CylinderGeometry(0.012, 0.02, 1.7, 3);
+    ghostHairInstanced = new THREE.InstancedMesh(hairStrandGeo, hairMat, strandCount);
+    const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(),
+          tmpE = new THREE.Euler(), tmpPos = new THREE.Vector3(),
+          tmpScale = new THREE.Vector3(1,1,1);
+    for (let i = 0; i < strandCount; i++){
+      const angle = (i / strandCount) * Math.PI * 2;
+      const r = 0.3 + Math.random()*0.05;
+      const px = Math.cos(angle)*r;
+      const pz = Math.sin(angle)*r - 0.06;
+      const py = 2.15 - Math.random()*0.25;
+      const rotZ = (Math.random()-0.5) * 0.35;
+      const rotX = (Math.random()-0.5) * 0.3;
+      const sway = 0.04 + Math.random()*0.08;
+      const phase = Math.random() * Math.PI * 2;
+      strandData.push({px, py, pz, rotZ, rotX, sway, phase, scaleY: 0.85 + Math.random()*0.5});
+      tmpE.set(rotX, 0, rotZ); tmpQ.setFromEuler(tmpE);
+      tmpPos.set(px, py, pz); tmpScale.set(1, strandData[i].scaleY, 1);
+      tmpM.compose(tmpPos, tmpQ, tmpScale);
+      ghostHairInstanced.setMatrixAt(i, tmpM);
+    }
+    ghostHairInstanced.instanceMatrix.needsUpdate = true;
+    g.add(ghostHairInstanced);
+  }
+
+  const hairBack = new THREE.Mesh(new THREE.BoxGeometry(0.58, 1.9, 0.22), hairMat);
+  hairBack.position.set(0, 1.85, -0.3); g.add(hairBack);
+  const braid = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.03, 1.1, 5), hairMat);
+  braid.position.set(0, 1.35, -0.42); braid.rotation.x = 0.05; g.add(braid);
+
+  ghostAura.inner = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowRed, blending: THREE.AdditiveBlending,
+    depthWrite: false, transparent: true, opacity: 0.95
+  }));
+  ghostAura.inner.scale.set(4.5, 5.5, 1); ghostAura.inner.position.y = 1.7; g.add(ghostAura.inner);
+  ghostAura.outer = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowDark, blending: THREE.AdditiveBlending,
+    depthWrite: false, transparent: true, opacity: 0.4
+  }));
+  ghostAura.outer.scale.set(13, 15, 1); ghostAura.outer.position.y = 1.5; g.add(ghostAura.outer);
+  ghostAura.beacon = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowRed, blending: THREE.AdditiveBlending,
+    depthWrite: false, transparent: true, opacity: 1
+  }));
+  ghostAura.beacon.scale.set(2, 2, 1); ghostAura.beacon.position.y = 3.8; g.add(ghostAura.beacon);
+  ghostAura.ground = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowRed, blending: THREE.AdditiveBlending,
+    depthWrite: false, transparent: true, opacity: 0.55
+  }));
+  ghostAura.ground.scale.set(5.5, 1.6, 1); ghostAura.ground.position.y = 0.05; g.add(ghostAura.ground);
+  ghostLightRef = new THREE.PointLight(0xff1020, 35, 18, 1.8);
+  ghostLightRef.position.set(0, 1.9, 0); g.add(ghostLightRef);
+
+  g.userData = {
+    hairStrands: ghostHairInstanced, strandData, dropMeshes: ghostBloodDrops,
+    auraInner: ghostAura.inner, auraOuter: ghostAura.outer,
+    mainLight: ghostLightRef, beacon: ghostAura.beacon, groundGlow: ghostAura.ground,
+    pL, pR, head: headGroup, jaw, hairCap, hairBack,
+    tmpM: new THREE.Matrix4(), tmpQ: new THREE.Quaternion(),
+    tmpE: new THREE.Euler(), tmpPos: new THREE.Vector3(),
+    tmpScale: new THREE.Vector3(1,1,1)
+  };
+  return g;
+}
+
+function rebuildGhost(){
+  if (ghostMesh){
+    scene.remove(ghostMesh);
+    ghostMesh.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  }
+  ghostMesh = createRealisticWife();
+  scene.add(ghostMesh);
+  if (ghost){
+    ghostMesh.position.set(ghost.x, 0.24, ghost.z);
+    ghostMesh.rotation.y = ghost.facing;
+  }
+  applySettingVisibility();
+}
+
+const jumpscareCanvas = document.getElementById('jumpscareCanvas');
+const jsCtx = jumpscareCanvas.getContext('2d');
+let jumpscareFace = null, jumpscareFaceSize = 0;
+function resizeJumpscare(){
+  const size = Math.min(Math.min(window.innerWidth, window.innerHeight), 384);
+  jumpscareCanvas.width = window.innerWidth;
+  jumpscareCanvas.height = window.innerHeight;
+  if (size !== jumpscareFaceSize){ jumpscareFace = makeTerrifyingFace(size); jumpscareFaceSize = size; }
+}
+
+/* ================= স্টেট ================= */
+let state='start';
+let difficulty = DIFF[S.defaultDifficulty] || DIFF.medium;
+let yaw=0, pitch=0, bobPhase=0;
+let time=0, lives=3, invuln=0;
+let wasChasing=false, nearExitMsg='', nearHideId=-1;
+let fearLevel=0, lastFearOpacity=-1;
+
+let noiseLevel = 0;
+let noiseRingOpacity = 0;
+let lastNoiseX = 0, lastNoiseZ = 0;
+let noiseHeard = false;
+
+let searching = null;
+let searchProgress = 0;
+let nearestSearchable = null;
+
+let ambientTimer = 10 + Math.random()*10;
+
+const START_PLAYER = { x: 3.5*TILE, z: 3.5*TILE };
+const START_GHOST  = { x: 26.5*TILE, z: 17.5*TILE };
+
+const player={x:START_PLAYER.x,z:START_PLAYER.z,hidden:false,hideSpot:null,preHideX:0,preHideZ:0,footstepTimer:0};
+const ghost={x:START_GHOST.x,z:START_GHOST.z,path:null,repath:0,memory:0,lastSeenX:0,lastSeenZ:0,target:null,bob:0,facing:0,glitch:0,headTilt:0,ambientTimer:0,hearing:0};
+const inventory={keys:0,hammer:0,wrench:0};
+const keys={};
+let escapesUnlocked={door:false,window:false,gate:false};
+
+let heartbeatTimer=0, heartbeatIntensity=0.05, heartbeatVisualPulse=0;
+let fpsCounter=0, fpsTimeAcc=0, currentFps=60, adaptiveCooldown=0, hudUpdateAcc=0;
+let hairFrameSkip = 1;
+
+/* ================= অডিও ================= */
+let actx=null;
+function initAudio(){
+  if(!actx){
+    try{actx=new (window.AudioContext||window.webkitAudioContext)({latencyHint:'interactive'});}
+    catch(e){actx=null;}
+  }
+  if(actx && actx.state==='suspended') actx.resume();
+}
+document.addEventListener('pointerdown', initAudio, {passive:true});
+document.addEventListener('touchstart', initAudio, {passive:true});
+
+function volScale(base,type){
+  if(S.mute) return 0;
+  const master=S.masterVol/100; let m=1;
+  if(type==='sfx') m=S.sfxVol/100;
+  else if(type==='heart') m=S.heartVol/100;
+  else if(type==='foot') m=S.footstepVol/100;
+  else if(type==='whisper') m=S.whisperVol/100;
+  return base*master*m;
+}
+function beep(f,d,t,v,slide){
+  if(!actx) return;
+  t=t||'sine'; v=v==null?0.12:v; v=volScale(v,'sfx'); if(v<=0) return;
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type=t; o.frequency.setValueAtTime(f,actx.currentTime);
+  if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(20,slide),actx.currentTime+d);
+  g.gain.setValueAtTime(v,actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+d);
+  o.connect(g); g.connect(actx.destination);
+  o.start(); o.stop(actx.currentTime+d+0.02);
+}
+function playThump(freq,vol,dur){
+  if(!actx) return;
+  vol=volScale(vol,'heart'); if(vol<=0) return;
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type='sine'; o.frequency.setValueAtTime(freq,actx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(freq*0.55,actx.currentTime+dur);
+  g.gain.setValueAtTime(0,actx.currentTime);
+  g.gain.linearRampToValueAtTime(vol,actx.currentTime+0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+dur);
+  o.connect(g); g.connect(actx.destination);
+  o.start(); o.stop(actx.currentTime+dur+0.02);
+}
+function playHeartbeatPair(intensity){
+  if(!actx||intensity<0.05) return;
+  const vol=0.04+intensity*0.26, base=52+intensity*22;
+  playThump(base,vol,0.11);
+  pulseVibe(intensity);
+  setTimeout(()=>{if(actx) playThump(base*1.18,vol*0.72,0.09);},130-intensity*40);
+}
+function playFootstep(volume){
+  if(!actx) return;
+  volume=volScale(volume,'foot'); if(volume<=0) return;
+  const dur=0.08;
+  const buf=actx.createBuffer(1,Math.floor(actx.sampleRate*dur),actx.sampleRate);
+  const data=buf.getChannelData(0);
+  for(let i=0;i<data.length;i++){
+    const t=i/actx.sampleRate;
+    data[i]=(Math.random()*2-1)*Math.pow(1-t/dur,2)*0.6;
+  }
+  const src=actx.createBufferSource(); src.buffer=buf;
+  const lp=actx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=420;
+  const g=actx.createGain(); g.gain.value=volume;
+  src.connect(lp); lp.connect(g); g.connect(actx.destination);
+  src.start(); src.stop(actx.currentTime+dur);
+}
+function playWhisper(){
+  if(!actx) return;
+  const dur=1.0, vol=volScale(0.13,'whisper'); if(vol<=0) return;
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type='sine';
+  o.frequency.setValueAtTime(140,actx.currentTime);
+  o.frequency.linearRampToValueAtTime(90,actx.currentTime+dur);
+  const lfo=actx.createOscillator(), lg=actx.createGain();
+  lfo.frequency.value=7; lg.gain.value=22;
+  lfo.connect(lg); lg.connect(o.frequency);
+  lfo.start(); lfo.stop(actx.currentTime+dur);
+  g.gain.setValueAtTime(vol,actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+dur);
+  o.connect(g); g.connect(actx.destination);
+  o.start(); o.stop(actx.currentTime+dur);
+}
+function playCreak(){
+  if(!actx) return;
+  const vol=volScale(0.08,'sfx'); if(vol<=0) return;
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type='sawtooth';
+  o.frequency.setValueAtTime(160+Math.random()*60,actx.currentTime);
+  o.frequency.linearRampToValueAtTime(50,actx.currentTime+0.8);
+  const lfo=actx.createOscillator(), lg=actx.createGain();
+  lfo.frequency.value=3.2; lg.gain.value=12;
+  lfo.connect(lg); lg.connect(o.frequency);
+  lfo.start(); lfo.stop(actx.currentTime+0.8);
+  g.gain.setValueAtTime(0,actx.currentTime);
+  g.gain.linearRampToValueAtTime(vol,actx.currentTime+0.2);
+  g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+0.9);
+  o.connect(g); g.connect(actx.destination);
+  o.start(); o.stop(actx.currentTime+0.9);
+}
+function playDistantThud(){
+  if(!actx) return;
+  const vol=volScale(0.12,'sfx'); if(vol<=0) return;
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type='sine';
+  o.frequency.setValueAtTime(80,actx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(28,actx.currentTime+0.5);
+  g.gain.setValueAtTime(0,actx.currentTime);
+  g.gain.linearRampToValueAtTime(vol,actx.currentTime+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+0.55);
+  o.connect(g); g.connect(actx.destination);
+  o.start(); o.stop(actx.currentTime+0.55);
+}
+function playSearchSound(){
+  if(!actx) return;
+  const dur=0.3;
+  const buf=actx.createBuffer(1,Math.floor(actx.sampleRate*dur),actx.sampleRate);
+  const data=buf.getChannelData(0);
+  for(let i=0;i<data.length;i++){
+    const t=i/actx.sampleRate;
+    data[i]=(Math.random()*2-1)*Math.pow(1-t/dur,1.5)*0.35;
+  }
+  const src=actx.createBufferSource(); src.buffer=buf;
+  const bp=actx.createBiquadFilter(); bp.type='bandpass';
+  bp.frequency.value=1800; bp.Q.value=1.1;
+  const g=actx.createGain(); g.gain.value=volScale(0.18,'sfx');
+  src.connect(bp); bp.connect(g); g.connect(actx.destination);
+  src.start(); src.stop(actx.currentTime+dur);
+}
+function playCatchSound(){
+  if(!actx||S.mute||S.masterVol<=0||S.sfxVol<=0) return;
+  const dur=1.8;
+  const sub=actx.createOscillator(), subG=actx.createGain();
+  sub.type='sine'; sub.frequency.setValueAtTime(110,actx.currentTime);
+  sub.frequency.exponentialRampToValueAtTime(22,actx.currentTime+dur);
+  subG.gain.setValueAtTime(volScale(0.42,'sfx'),actx.currentTime);
+  subG.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+dur);
+  sub.connect(subG); subG.connect(actx.destination);
+  sub.start(); sub.stop(actx.currentTime+dur);
+  const growl=actx.createOscillator(), growlG=actx.createGain();
+  growl.type='sawtooth';
+  growl.frequency.setValueAtTime(72,actx.currentTime);
+  growl.frequency.linearRampToValueAtTime(48,actx.currentTime+dur);
+  growlG.gain.setValueAtTime(volScale(0.18,'sfx'),actx.currentTime);
+  growlG.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+dur);
+  growl.connect(growlG); growlG.connect(actx.destination);
+  growl.start(); growl.stop(actx.currentTime+dur);
+  for(let i=0;i<4;i++){
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=i%2===0?'sawtooth':'square';
+    const base=150+i*95;
+    o.frequency.setValueAtTime(base*3.0,actx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(base*0.35,actx.currentTime+dur);
+    g.gain.setValueAtTime(volScale(0.07,'sfx'),actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(); o.stop(actx.currentTime+dur);
+  }
+  const shriek=actx.createOscillator(), sg=actx.createGain();
+  shriek.type='sine';
+  shriek.frequency.setValueAtTime(3200,actx.currentTime);
+  shriek.frequency.exponentialRampToValueAtTime(560,actx.currentTime+dur*0.7);
+  sg.gain.setValueAtTime(volScale(0.1,'sfx'),actx.currentTime);
+  sg.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+dur*0.7);
+  shriek.connect(sg); sg.connect(actx.destination);
+  shriek.start(); shriek.stop(actx.currentTime+dur*0.7);
+}
+
+/* ================= কলিশন ================= */
+function blocked(x,z,r){
+  const minX=Math.floor((x-r)/TILE), maxX=Math.floor((x+r)/TILE);
+  const minZ=Math.floor((z-r)/TILE), maxZ=Math.floor((z+r)/TILE);
+  for(let tz=minZ;tz<=maxZ;tz++) for(let tx=minX;tx<=maxX;tx++){
+    if(tx<0||tz<0||tx>=COLS||tz>=ROWS) return true;
+    const t=map[tz][tx];
+    if(t===1||t===2||t===3||t===4||t===5) return true;
+  }
+  return false;
+}
+function hasLOS(x1,z1,x2,z2){
+  const d=Math.hypot(x2-x1,z2-z1), st=Math.ceil(d/0.5);
+  for(let i=1;i<st;i++){
+    const t=i/st, x=x1+(x2-x1)*t, z=z1+(z2-z1)*t;
+    const tx=Math.floor(x/TILE), tz=Math.floor(z/TILE);
+    if(tx<0||tz<0||tx>=COLS||tz>=ROWS) return false;
+    if(map[tz][tx]===1) return false;
+  }
+  return true;
+}
+function findPath(sx,sz,gx,gz){
+  const s=sz*COLS+sx, g=gz*COLS+gx;
+  if(s===g) return null;
+  const par=new Int32Array(COLS*ROWS).fill(-2); par[s]=-1;
+  const q=[s]; let h=0;
+  const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+  while(h<q.length){
+    const c=q[h++];
+    if(c===g){const p=[];let n=c;while(n!==-1){p.push(n);n=par[n];}p.reverse();return p;}
+    const cx=c%COLS, cz=(c-cx)/COLS;
+    for(let d=0;d<4;d++){
+      const nx=cx+dirs[d][0], nz=cz+dirs[d][1];
+      if(nx<0||nz<0||nx>=COLS||nz>=ROWS) continue;
+      const t=map[nz][nx];
+      if(t===1||t===2||t===3||t===4) continue;
+      const ni=nz*COLS+nx;
+      if(par[ni]!==-2) continue;
+      par[ni]=c; q.push(ni);
+    }
+  }
+  return null;
+}
+function randomFloor(){
+  for(let i=0;i<300;i++){
+    const tx=1+Math.floor(Math.random()*(COLS-2));
+    const tz=1+Math.floor(Math.random()*(ROWS-2));
+    if(map[tz][tx]===0) return {x:(tx+.5)*TILE,z:(tz+.5)*TILE};
+  }
+  return {x:START_PLAYER.x,z:START_PLAYER.z};
+}
+
+/* ================= রিসেট ================= */
+function resetGame(){
+  player.x=START_PLAYER.x; player.z=START_PLAYER.z;
+  player.hidden=false; player.hideSpot=null; player.footstepTimer=0;
+  ghost.x=START_GHOST.x; ghost.z=START_GHOST.z;
+  ghost.path=null; ghost.repath=0; ghost.memory=0;
+  ghost.target=null; ghost.bob=0; ghost.facing=0;
+  ghost.glitch=0; ghost.headTilt=0; ghost.ambientTimer=0; ghost.hearing=0;
+  yaw=-Math.PI/2; pitch=0; bobPhase=0;
+  lives=difficulty.lives;
+  invuln=1.5; time=0; wasChasing=false; nearHideId=-1;
+  fearLevel=0; lastFearOpacity=-1;
+  inventory.keys=0; inventory.hammer=0; inventory.wrench=0;
+  escapesUnlocked={door:false,window:false,gate:false};
+  heartbeatTimer=0; heartbeatIntensity=0.05; heartbeatVisualPulse=0;
+  noiseLevel=0; noiseRingOpacity=0; lastNoiseX=0; lastNoiseZ=0; noiseHeard=false;
+  searching=null; searchProgress=0; nearestSearchable=null;
+  ambientTimer = 10 + Math.random()*10;
+
+  searchableData.forEach((s, i) => {
+    s.searched = false;
+    s.foundItem = null;
+    s.lidOpen = 0;
+    _tmpP.set(s.x, 0.92, s.z);
+    _tmpQ.set(0,0,0,1);
+    _tmpScale.set(1,1,1);
+    _tmpM.compose(_tmpP, _tmpQ, _tmpScale);
+    sLidMesh.setMatrixAt(i, _tmpM);
+    searchableMarkers[i].visible = true;
+  });
+  sLidMesh.instanceMatrix.needsUpdate = true;
+
+  EXITS.forEach(e=>{
+    exitMeshes[e.id].mat.emissive.setHex(0x000000);
+    exitMeshes[e.id].glow.material.opacity=0;
+  });
+  updateHUD();
+}
+
+/* ================= HUD ================= */
+const hudTime=document.getElementById('hudTime');
+const hudBpm=document.getElementById('hudBpm');
+const hudFps=document.getElementById('hudFps');
+const hudLives=document.getElementById('hudLives');
+const msgEl=document.getElementById('msg');
+const damageEl=document.getElementById('damage');
+const fearOverlay=document.getElementById('fearOverlay');
+const pulseEl=document.getElementById('pulse');
+const noiseRing=document.getElementById('noiseRing');
+const vignetteEl=document.getElementById('vignette');
+const jumpscareEl=document.getElementById('jumpscare');
+const invEl=document.getElementById('inventory');
+const crosshairEl=document.getElementById('crosshair');
+const invKey=document.getElementById('invKey');
+const invHammer=document.getElementById('invHammer');
+const invWrench=document.getElementById('invWrench');
+const invKeyCount=document.getElementById('invKeyCount');
+const hideBtn=document.getElementById('hideBtn');
+const runBtn=document.getElementById('runBtn');
+const actionBtn=document.getElementById('actionBtn');
+const pauseBtn=document.getElementById('pauseBtn');
+const noiseBar=document.getElementById('noiseBar');
+const noiseBarFill=document.getElementById('noiseBarFill');
+const searchProgEl=document.getElementById('searchProgress');
+const searchProgFill=document.getElementById('searchProgressFill');
+const searchLabelEl=document.getElementById('searchLabel');
+let lastLivesShown=-1, lastKeysShown=-1;
+
+function updateHUD(){
+  hudTime.textContent=fmtTime(time);
+  if(lastLivesShown !== lives){
+    let h=''; for(let i=0;i<difficulty.lives;i++) h+=i<lives?'♥':'<span class="off">♥</span>';
+    hudLives.innerHTML=h; lastLivesShown=lives;
+  }
+  if(lastKeysShown !== inventory.keys){
+    invKeyCount.textContent=inventory.keys;
+    invKey.classList.toggle('empty', inventory.keys===0);
+    invKey.classList.toggle('have', inventory.keys>0);
+    lastKeysShown=inventory.keys;
+  }
+  invHammer.classList.toggle('empty', !inventory.hammer);
+  invHammer.classList.toggle('have', !!inventory.hammer);
+  invWrench.classList.toggle('empty', !inventory.wrench);
+  invWrench.classList.toggle('have', !!inventory.wrench);
+}
+function fmtTime(t){const s=Math.floor(t);return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');}
+let msgTimer=0;
+function showMsg(text,sec){msgEl.textContent=text;msgEl.style.opacity='1';msgTimer=sec||2;}
+function flashDamage(){
+  damageEl.style.opacity='1';
+  vibe(180);
+  setTimeout(()=>{damageEl.style.opacity='0';},140);
+}
+function triggerJumpscare(){
+  jsCtx.clearRect(0,0,jumpscareCanvas.width,jumpscareCanvas.height);
+  if(jumpscareFace) jsCtx.drawImage(jumpscareFace,0,0,jumpscareCanvas.width,jumpscareCanvas.height);
+  jumpscareEl.classList.add('flash');
+  setTimeout(()=>{jumpscareEl.classList.remove('flash');},260);
+  playCatchSound();
+  scareVibe();
+}
+
+/* ================= Settings ================= */
+function applySettings(){
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, S.pixelRatio));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.toneMapping = S.toneMapping ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+  renderer.shadowMap.enabled = S.shadows;
+  camera.fov = S.fov; camera.updateProjectionMatrix();
+  scene.fog.near = S.fogNear; scene.fog.far = S.fogFar;
+  camera.far = Math.max(80, S.fogFar + 20);
+  camera.updateProjectionMatrix();
+  playerLight.visible = S.playerLight;
+  if(ghostLightRef) ghostLightRef.visible = S.ghostLight;
+  crosshairEl.style.setProperty('--ch-size', S.chSize+'px');
+  crosshairEl.style.setProperty('--ch-opacity', S.chOpacity);
+  applySettingVisibility();
+}
+function applySettingVisibility(){
+  if(ghostAura.inner) ghostAura.inner.visible = S.aura;
+  if(ghostAura.outer) ghostAura.outer.visible = S.aura;
+  if(ghostAura.beacon) ghostAura.beacon.visible = S.aura;
+  if(ghostAura.ground) ghostAura.ground.visible = S.aura;
+  ghostBloodDrops.forEach(d=>d.visible = S.bloodDrops);
+  if(ghostLightRef) ghostLightRef.visible = S.ghostLight;
+  hudFps.style.display = S.showFps ? '' : 'none';
+  hudBpm.style.display = S.showBpm ? '' : 'none';
+  hudTime.style.display = S.showTimer ? '' : 'none';
+  invEl.style.display = S.showInventory ? '' : 'none';
+  crosshairEl.style.display = S.showCrosshair ? '' : 'none';
+  vignetteEl.style.display = S.vignette ? '' : 'none';
+}
+
+/* ================= ইনপুট ================= */
+window.addEventListener('keydown', e=>{
+  const k=e.key.toLowerCase();
+  keys[k]=true;
+  if(k.startsWith('arrow')||k===' ') e.preventDefault();
+  initAudio();
+  if(k==='escape'){
+    if(settingsEl.classList.contains('open')) closeSettings();
+    else if(state==='playing') openSettings();
+    return;
+  }
+  if(k==='e' && state==='playing') tryActionButton();
+  if(state!=='playing' && (k==='r'||k==='enter')){
+    const b=document.querySelector('#screen button[data-action="again"]'); if(b) b.click();
+  }
+});
+window.addEventListener('keyup', e=>{keys[e.key.toLowerCase()]=false;});
+
+const isTouch = true;
+const hintEl=document.getElementById('hint');
+canvas.addEventListener('click', ()=>{
+  if(state==='playing' && document.pointerLockElement!==canvas
+     && !settingsEl.classList.contains('open') && !introEl.classList.contains('open')) {
+    try { canvas.requestPointerLock(); } catch(e){}
+  }
+});
+document.addEventListener('pointerlockchange', ()=>{
+  const lk=document.pointerLockElement===canvas;
+  if(state==='playing' && !isTouch) hintEl.classList.toggle('hidden', lk);
+});
+document.addEventListener('mousemove', e=>{
+  if(document.pointerLockElement!==canvas || state!=='playing') return;
+  const s=0.0022*S.sensitivity;
+  yaw -= e.movementX*s;
+  pitch -= e.movementY*s*(S.invertY?-1:1);
+  pitch=Math.max(-1.45,Math.min(1.45,pitch));
+});
+
+const joyEl=document.getElementById('joy'), joyKnob=document.getElementById('joyKnob');
+let moveId=null, lookId=null, joyO={x:0,y:0}, joyV={x:0,y:0}, lookP={x:0,y:0};
+function onTS(e){
+  e.preventDefault(); initAudio();
+  const hw=window.innerWidth/2;
+  for(const t of e.changedTouches){
+    if(runBtn.contains(t.target)||hideBtn.contains(t.target)||actionBtn.contains(t.target)||pauseBtn.contains(t.target)) continue;
+    if(t.clientX<hw && moveId===null){
+      moveId=t.identifier; joyO={x:t.clientX,y:t.clientY}; joyV={x:0,y:0};
+      joyEl.style.display='block'; joyEl.style.left=t.clientX+'px'; joyEl.style.top=t.clientY+'px';
+      joyKnob.style.transform='translate(0,0)';
+    } else if(t.clientX>=hw && lookId===null){
+      lookId=t.identifier; lookP={x:t.clientX,y:t.clientY};
+    }
+  }
+}
+function onTM(e){
+  e.preventDefault();
+  for(const t of e.changedTouches){
+    if(t.identifier===moveId){
+      let dx=t.clientX-joyO.x, dy=t.clientY-joyO.y;
+      const len=Math.hypot(dx,dy), MAX=58;
+      if(len>MAX){dx=dx/len*MAX;dy=dy/len*MAX;}
+      joyV.x=dx/MAX; joyV.y=dy/MAX;
+      joyKnob.style.transform=`translate(${dx}px,${dy}px)`;
+    } else if(t.identifier===lookId){
+      const dx=t.clientX-lookP.x, dy=t.clientY-lookP.y;
+      lookP={x:t.clientX,y:t.clientY};
+      const ss=0.0055*S.touchSensitivity;
+      yaw -= dx*ss;
+      pitch -= dy*ss*(S.invertY?-1:1);
+      pitch=Math.max(-1.45,Math.min(1.45,pitch));
+    }
+  }
+}
+function onTE(e){
+  for(const t of e.changedTouches){
+    if(t.identifier===moveId){moveId=null;joyV={x:0,y:0};joyEl.style.display='none';}
+    if(t.identifier===lookId) lookId=null;
+  }
+}
+canvas.addEventListener('touchstart',onTS,{passive:false});
+canvas.addEventListener('touchmove',onTM,{passive:false});
+canvas.addEventListener('touchend',onTE,{passive:false});
+canvas.addEventListener('touchcancel',onTE,{passive:false});
+
+let runBtnHeld=false;
+['touchstart','mousedown'].forEach(ev=>runBtn.addEventListener(ev,e=>{
+  e.preventDefault();
+  if(S.toggleRun){runBtnHeld=!runBtnHeld;runBtn.classList.toggle('active',runBtnHeld);}
+  else{runBtnHeld=true;runBtn.classList.add('active');}
+  vibe(40);
+  initAudio();
+}));
+['touchend','touchcancel','mouseup','mouseleave'].forEach(ev=>runBtn.addEventListener(ev,e=>{
+  if(S.toggleRun) return;
+  e.preventDefault(); runBtnHeld=false; runBtn.classList.remove('active');
+}));
+
+function tryActionButton(){
+  vibe(45);
+  if(player.hidden){
+    player.hidden=false; player.hideSpot=null;
+    player.x=player.preHideX; player.z=player.preHideZ;
+    showMsg('বাইরে এসেছো — সাবধানে!',1.2);
+    return;
+  }
+  if(searching){ cancelSearch(); return; }
+  if(nearestSearchable && !nearestSearchable.searched){ startSearch(nearestSearchable); return; }
+  let best=null, bestD=1.7;
+  hidingObjects.forEach(h=>{
+    const d=Math.hypot(player.x-h.x, player.z-h.z);
+    if(d<bestD){bestD=d;best=h;}
+  });
+  if(best){
+    player.preHideX=player.x; player.preHideZ=player.z;
+    player.x=best.x; player.z=best.z;
+    player.hidden=true; player.hideSpot=best;
+    ghost.memory=0; ghost.path=null;
+    beep(300,0.2,'sine',0.1,180);
+    showMsg('🫣 লুকিয়ে পড়েছো... চুপ থাকো',2.0);
+  }
+}
+actionBtn.addEventListener('touchstart', e=>{e.preventDefault();initAudio();tryActionButton();});
+actionBtn.addEventListener('click', e=>{e.preventDefault();initAudio();tryActionButton();});
+hideBtn.addEventListener('touchstart', e=>{e.preventDefault();initAudio();tryActionButton();});
+hideBtn.addEventListener('click', e=>{e.preventDefault();initAudio();tryActionButton();});
+
+/* ================= Search ================= */
+function startSearch(s){
+  if(searching) return;
+  searching = s;
+  searchProgress = 0;
+  searchProgEl.classList.add('on');
+  searchLabelEl.classList.add('on');
+  searchLabelEl.textContent = '🔍 ' + s.label + ' সার্চ করছি...';
+}
+function cancelSearch(){
+  if(!searching) return;
+  searching = null; searchProgress = 0;
+  searchProgEl.classList.remove('on');
+  searchLabelEl.classList.remove('on');
+}
+function completeSearch(){
+  const s = searching;
+  searching = null; searchProgress = 0;
+  searchProgEl.classList.remove('on');
+  searchLabelEl.classList.remove('on');
+  if(s.searched) return;
+  s.searched = true;
+  const idx = searchableData.indexOf(s);
+  searchableMarkers[idx].visible = false;
+  s.lidOpen = 1;
+
+  noiseLevel = Math.min(100, noiseLevel + 55);
+  lastNoiseX = player.x; lastNoiseZ = player.z;
+  playSearchSound();
+  vibe(80);
+
+  if(s.contains === 'key'){
+    inventory.keys++;
+    beep(880,0.1,'square',0.09); setTimeout(()=>beep(1320,0.16,'square',0.09),85);
+    showMsg('🔑 চাবি পেয়েছো! ('+inventory.keys+'/3) — শব্দ হয়েছে!',2.2);
+  } else if(s.contains === 'hammer'){
+    inventory.hammer = 1;
+    beep(660,0.12,'triangle',0.11); setTimeout(()=>beep(990,0.18,'triangle',0.11),100);
+    showMsg('🔨 হাতুড়ি পেয়েছো! — শব্দ হয়েছে!',2.2);
+  } else if(s.contains === 'wrench'){
+    inventory.wrench = 1;
+    beep(520,0.12,'triangle',0.11); setTimeout(()=>beep(780,0.18,'triangle',0.11),100);
+    showMsg('🔧 রেঞ্চ পেয়েছো! — শব্দ হয়েছে!',2.2);
+  } else {
+    s.foundItem = 'empty';
+    showMsg('📦 খালি... অন্য জায়গায় খোঁজো',1.8);
+  }
+  updateHUD();
+  checkUnlocks();
+}
+
+/* ================= Update ================= */
+function updatePlayer(dt){
+  if(player.hidden || searching) return;
+  let mx=0, mz=0;
+  if(keys['w']||keys['arrowup']) mz-=1;
+  if(keys['s']||keys['arrowdown']) mz+=1;
+  if(keys['a']||keys['arrowleft']) mx-=1;
+  if(keys['d']||keys['arrowright']) mx+=1;
+  if(moveId!==null){mx+=joyV.x; mz+=joyV.y;}
+  const len=Math.hypot(mx,mz);
+  if(len>1){mx/=len;mz/=len;}
+  const running = (keys['shift']||keys['shiftleft']||keys['shiftright']||runBtnHeld);
+  const spd = running?SPEED_RUN:SPEED_WALK;
+  let moved=false;
+  if(len>0.02){
+    const sy=Math.sin(yaw), cy=Math.cos(yaw);
+    const wx=(-sy)*(-mz)+cy*mx;
+    const wz=(-cy)*(-mz)+(-sy)*mx;
+    const dx=wx*spd*dt, dz=wz*spd*dt;
+    if(!blocked(player.x+dx,player.z,PLAYER_R)){player.x+=dx;moved=true;}
+    if(!blocked(player.x,player.z+dz,PLAYER_R)){player.z+=dz;moved=true;}
+    bobPhase += dt*(running?13:9);
+    player.footstepTimer -= dt;
+    if(moved && player.footstepTimer<=0){
+      player.footstepTimer = running?0.32:0.55;
+      playFootstep(running?0.09:0.05);
+    }
+  } else {
+    bobPhase += dt*1.6;
+    player.footstepTimer=0;
+  }
+
+  let noiseAdd = 0;
+  if(moved) noiseAdd = running ? 75 : 22;
+  else noiseAdd = -35;
+  noiseLevel = Math.max(0, Math.min(100, noiseLevel + noiseAdd*dt));
+  if(!moved) noiseLevel = Math.max(0, noiseLevel - 12*dt);
+  if(noiseLevel > 15){ lastNoiseX = player.x; lastNoiseZ = player.z; }
+
+  let shakeX=0, shakeY=0;
+  if(S.screenShake){
+    const shake = fearLevel>0.3 ? (fearLevel-0.3)*0.08 : 0;
+    shakeX=(Math.random()-0.5)*shake;
+    shakeY=(Math.random()-0.5)*shake;
+  }
+  camera.position.x=player.x+shakeX;
+  camera.position.z=player.z+shakeY;
+  camera.position.y=EYE+Math.sin(bobPhase)*0.045+shakeY*0.3;
+  camera.rotation.y=yaw+shakeX*0.5;
+  camera.rotation.x=pitch+shakeY*0.5;
+}
+function checkUnlocks(){
+  EXITS.forEach(e=>{
+    let ok=false;
+    if(e.needs==='keys') ok=inventory.keys>=e.needCount;
+    if(e.needs==='hammer') ok=inventory.hammer>=1;
+    if(e.needs==='wrench') ok=inventory.wrench>=1;
+    if(ok && !escapesUnlocked[e.id]){
+      escapesUnlocked[e.id]=true;
+      exitMeshes[e.id].mat.emissive.setHex(e.id==='door'?0x1e8f52:e.id==='window'?0x1e5a8f:0x8f5a1e);
+      exitMeshes[e.id].glow.material.opacity=1;
+      showMsg('✨ '+e.name+' খুলে গেছে!',2.5);
+      vibe(150);
+      beep(660,0.16,'sine',0.13);
+      setTimeout(()=>beep(880,0.16,'sine',0.13),150);
+      setTimeout(()=>beep(1100,0.3,'sine',0.13),300);
+    }
+  });
+}
+function animateHair(dt){
+  const u = ghostMesh && ghostMesh.userData;
+  if(!u || !u.hairStrands) return;
+  const strands=u.hairStrands, data=u.strandData;
+  const M=u.tmpM, Q=u.tmpQ, E=u.tmpE, P=u.tmpPos, Sc=u.tmpScale;
+  for(let i=0;i<data.length;i++){
+    const d=data[i];
+    d.phase += dt*2.5;
+    const rz = Math.sin(d.phase)*d.sway + d.rotZ*0.95;
+    const rx = Math.cos(d.phase*0.7)*d.sway*0.6 + d.rotX*0.95;
+    d.rotZ=rz; d.rotX=rx;
+    E.set(rx,0,rz); Q.setFromEuler(E);
+    P.set(d.px,d.py,d.pz); Sc.set(1,d.scaleY,1);
+    M.compose(P,Q,Sc);
+    strands.setMatrixAt(i,M);
+  }
+  strands.instanceMatrix.needsUpdate = true;
+}
+function animateGhostMesh(dt){
+  const u = ghostMesh && ghostMesh.userData;
+  if(!u) return;
+
+  const distToPlayer = Math.hypot(ghost.x - player.x, ghost.z - player.z);
+  const isClose = distToPlayer < 20;
+  const isVisible = hasLOS(ghost.x, ghost.z, player.x, player.z) || distToPlayer < 6;
+
+  if (isClose && isVisible) {
+    hairFrameSkip = (hairFrameSkip + 1) % 2;
+    if (hairFrameSkip === 0) animateHair(dt * 2);
+  }
+
+  if(S.bloodDrops && isClose){
+    u.dropMeshes.forEach(d=>{
+      d.userData.phase += dt*3;
+      d.position.y = d.userData.baseY - Math.abs(Math.sin(d.userData.phase))*0.15;
+    });
+  }
+
+  if(S.aura){
+    const pulse = 0.7 + 0.3*Math.sin(time*5);
+    u.auraInner.material.opacity = 0.85*pulse;
+    u.auraOuter.material.opacity = 0.35*pulse;
+    u.auraInner.scale.set(4.5*pulse+0.6, 5.5*pulse+0.6, 1);
+    u.groundGlow.material.opacity = 0.4*pulse;
+    if(S.ghostLight) u.mainLight.intensity = (32+Math.random()*8)*pulse;
+    u.beacon.material.opacity = 0.7 + 0.3*pulse;
+  }
+
+  if(isClose){
+    ghost.headTilt += dt*0.5;
+    const tilt = Math.sin(ghost.headTilt*0.6)*0.12 + Math.sin(ghost.headTilt*2.1)*0.04;
+    if(u.head) u.head.rotation.z = tilt;
+    if(u.jaw) u.jaw.rotation.z = tilt*0.5;
+    if(u.hairCap) u.hairCap.rotation.z = tilt*0.7;
+    if(u.pL) u.pL.material.color.setRGB(1, Math.random()*0.15, Math.random()*0.15);
+    if(u.pR) u.pR.material.color.setRGB(1, Math.random()*0.15, Math.random()*0.15);
+  }
+}
+function updateGhost(dt){
+  if(!ghostMesh) return;
+  const dx=player.x-ghost.x, dz=player.z-ghost.z;
+  const dist=Math.hypot(dx,dz);
+  let canSee=false;
+  if(!player.hidden){
+    canSee = dist<difficulty.sight && hasLOS(ghost.x,ghost.z,player.x,player.z);
+  } else {
+    ghost.memory = Math.max(0, ghost.memory - dt*1.5);
+  }
+  const hearRange = (4 + noiseLevel * 0.30) * difficulty.hearing;
+  const noiseDist = Math.hypot(lastNoiseX - ghost.x, lastNoiseZ - ghost.z);
+  let heard = false;
+  if(!player.hidden && noiseLevel > 25 && noiseDist < hearRange && noiseDist > 1.0){ heard = true; }
+
+  if(canSee){
+    if(ghost.memory<0.1){playWhisper();setTimeout(playWhisper,350);}
+    ghost.memory=difficulty.memory;
+    ghost.lastSeenX=player.x; ghost.lastSeenZ=player.z;
+    if(!wasChasing){wasChasing=true;beep(420,0.55,'sawtooth',0.15,90);}
+  } else if(heard){
+    ghost.memory = Math.max(ghost.memory, 3.0);
+    ghost.lastSeenX = lastNoiseX;
+    ghost.lastSeenZ = lastNoiseZ;
+    if(!noiseHeard){ noiseHeard = true; beep(240,0.35,'sawtooth',0.12,120); }
+  } else if(ghost.memory>0){
+    ghost.memory -= dt;
+    if(ghost.memory<=0){wasChasing=false; noiseHeard=false;}
+  }
+
+  let tx,tz,speed;
+  if(ghost.memory>0 && !player.hidden){
+    tx=ghost.lastSeenX; tz=ghost.lastSeenZ;
+    speed=difficulty.chase + inventory.keys*0.22;
+  } else {
+    speed=difficulty.patrol + inventory.keys*0.14;
+    if(!ghost.target || Math.hypot(ghost.target.x-ghost.x, ghost.target.z-ghost.z)<1.3){
+      ghost.target=randomFloor();
+    }
+    tx=ghost.target.x; tz=ghost.target.z;
+  }
+  ghost.ambientTimer -= dt;
+  if(ghost.ambientTimer<=0 && !player.hidden && dist<20){
+    ghost.ambientTimer = 3.5 + Math.random()*5;
+    if(Math.random()<0.4) playWhisper();
+  }
+  ghost.repath -= dt;
+  if(ghost.repath<=0 || !ghost.path){
+    ghost.repath = ghost.memory>0?0.5:2.0;
+    const sx=Math.floor(ghost.x/TILE), sz=Math.floor(ghost.z/TILE);
+    const gx=Math.floor(tx/TILE), gz=Math.floor(tz/TILE);
+    if(gx>=0&&gz>=0&&gx<COLS&&gz<ROWS) ghost.path=findPath(sx,sz,gx,gz);
+    else ghost.path=null;
+  }
+  let dirX=0, dirZ=0;
+  if(ghost.path && ghost.path.length>1){
+    const n=ghost.path[1];
+    const nx=((n%COLS)+.5)*TILE, nz=(Math.floor(n/COLS)+.5)*TILE;
+    dirX=nx-ghost.x; dirZ=nz-ghost.z;
+    const l=Math.hypot(dirX,dirZ);
+    if(l>0.06){dirX/=l;dirZ/=l;} else {dirX=0;dirZ=0;}
+  }
+  if(dirX!==0 || dirZ!==0){
+    const step=speed*dt;
+    if(!blocked(ghost.x+dirX*step, ghost.z, GHOST_R)) ghost.x+=dirX*step;
+    if(!blocked(ghost.x, ghost.z+dirZ*step, GHOST_R)) ghost.z+=dirZ*step;
+    const ta=Math.atan2(dirX,dirZ);
+    let diff=ta-ghost.facing;
+    while(diff>Math.PI) diff-=Math.PI*2;
+    while(diff<-Math.PI) diff+=Math.PI*2;
+    ghost.facing += diff*Math.min(1,dt*7);
+  }
+  ghost.glitch -= dt;
+  if(ghost.glitch<=0){
+    ghost.glitch = 0.3 + Math.random()*0.5;
+    if(ghost.memory>0 && Math.random()<0.35){
+      const twitch = 0.12 + Math.random()*0.15;
+      const ang = Math.random()*Math.PI*2;
+      const nx = ghost.x + Math.cos(ang)*twitch;
+      const nz = ghost.z + Math.sin(ang)*twitch;
+      if(!blocked(nx,nz,GHOST_R)){ghost.x=nx; ghost.z=nz;}
+    }
+  }
+  ghost.bob += dt*2.4;
+  const gJitterX = Math.random()<0.05 ? (Math.random()-0.5)*0.05 : 0;
+  ghostMesh.position.set(ghost.x+gJitterX, 0.24+Math.sin(ghost.bob)*0.10, ghost.z);
+  ghostMesh.rotation.y = ghost.facing;
+
+  if(dist < 35) animateGhostMesh(dt);
+
+  const sightDist = difficulty.sight;
+  fearLevel = player.hidden ? 0 : Math.max(0, 1 - dist/(sightDist*0.9));
+  const fearOpacity = fearLevel*0.7;
+  if(Math.abs(fearOpacity-lastFearOpacity)>0.03){
+    fearOverlay.style.opacity = fearOpacity.toFixed(2);
+    lastFearOpacity = fearOpacity;
+  }
+  if(!player.hidden && dist<1.05 && invuln<=0) catchPlayer();
+}
+function catchPlayer(){
+  lives--; invuln=2.6; flashDamage();
+  triggerJumpscare();
+  updateHUD();
+  player.x=START_PLAYER.x; player.z=START_PLAYER.z;
+  player.hidden=false; player.hideSpot=null;
+  cancelSearch();
+  ghost.x=START_GHOST.x; ghost.z=START_GHOST.z;
+  ghost.path=null; ghost.memory=0; ghost.target=null; wasChasing=false;
+  fearOverlay.style.opacity='0'; lastFearOpacity=-1;
+  heartbeatIntensity = 0.05;
+  noiseLevel = 0;
+  if(lives<=0){
+    state='lost';
+    if(document.pointerLockElement)document.exitPointerLock();
+    try { if (window.AndroidBridge && window.AndroidBridge.onGameOver) window.AndroidBridge.onGameOver(fmtTime(time), difficulty.name); } catch(e){}
+    showLose();
+  }
+  else showMsg('😱 ধরা পড়ে গেলে! বাকি জীবন: '+lives,2.2);
+}
+function updateExits(dt){
+  EXITS.forEach(e=>{
+    const cx=(e.tx+.5)*TILE, cz=(e.ty+.5)*TILE;
+    const d=Math.hypot(player.x-cx, player.z-cz);
+    if(escapesUnlocked[e.id]){
+      const pulse=0.55+0.45*Math.sin(time*3.2);
+      exitMeshes[e.id].glow.material.opacity=pulse;
+      exitMeshes[e.id].glow.scale.setScalar(4+pulse*0.7);
+      exitMeshes[e.id].mat.emissiveIntensity = 0.7+pulse*0.9;
+      if(d<2.4 && !player.hidden){
+        state='won';
+        if(document.pointerLockElement)document.exitPointerLock();
+        beep(523,0.16,'sine',0.14);
+        setTimeout(()=>beep(659,0.16,'sine',0.14),150);
+        setTimeout(()=>beep(784,0.16,'sine',0.14),300);
+        setTimeout(()=>beep(1046,0.5,'sine',0.14),460);
+        try { if (window.AndroidBridge && window.AndroidBridge.onGameWin) window.AndroidBridge.onGameWin(fmtTime(time), difficulty.name); } catch(e){}
+        showWin(e);
+      }
+    } else if(d<3.2 && !player.hidden){
+      let msg='';
+      if(e.needs==='keys') msg='🚪 '+e.name+' — '+inventory.keys+'/3 চাবি';
+      if(e.needs==='hammer') msg='🪟 '+e.name+' — 🔨 হাতুড়ি দরকার';
+      if(e.needs==='wrench') msg='🚧 '+e.name+' — 🔧 রেঞ্চ দরকার';
+      if(msg!==nearExitMsg){nearExitMsg=msg;showMsg(msg,1.0);}
+    }
+  });
+}
+function updateActions(dt){
+  nearestSearchable = null;
+  let bestD = 1.7;
+  searchableData.forEach(s => {
+    if(s.searched) return;
+    const d = Math.hypot(player.x - s.x, player.z - s.z);
+    if(d < bestD){ bestD = d; nearestSearchable = s; }
+  });
+  let hideNear = false;
+  hidingObjects.forEach(h => {
+    if(Math.hypot(player.x - h.x, player.z - h.z) < 1.7) hideNear = true;
+  });
+  if(player.hidden){
+    actionBtn.classList.add('show');
+    actionBtn.innerHTML = '🚪<span class="lbl">EXIT</span>';
+    actionBtn.style.background = 'rgba(180,120,30,.75)';
+    return;
+  }
+  if(searching){
+    actionBtn.classList.add('show');
+    actionBtn.innerHTML = '✕<span class="lbl">CANCEL</span>';
+    actionBtn.style.background = 'rgba(200,40,40,.75)';
+    return;
+  }
+  if(nearestSearchable){
+    actionBtn.classList.add('show');
+    actionBtn.innerHTML = '🔍<span class="lbl">SEARCH</span>';
+    actionBtn.style.background = 'rgba(120,180,40,.75)';
+    return;
+  }
+  if(hideNear){
+    actionBtn.classList.add('show');
+    actionBtn.innerHTML = '🫣<span class="lbl">HIDE</span>';
+    actionBtn.style.background = 'rgba(180,120,30,.75)';
+    return;
+  }
+  actionBtn.classList.remove('show');
+}
+function updateSearchProgress(dt){
+  if(!searching) return;
+  const dist = Math.hypot(player.x - searching.x, player.z - searching.z);
+  if(dist > 2.0){ cancelSearch(); return; }
+  searchProgress += dt / searching.searchTime;
+  searchProgFill.style.width = Math.min(100, searchProgress * 100) + '%';
+  noiseLevel = Math.min(100, noiseLevel + 40*dt);
+  lastNoiseX = player.x; lastNoiseZ = player.z;
+  if(searchProgress >= 1) completeSearch();
+}
+function updateNoiseUI(){
+  if(noiseLevel > 10){
+    noiseBar.classList.add('on');
+    noiseBarFill.style.width = noiseLevel + '%';
+  } else {
+    noiseBar.classList.remove('on');
+  }
+  const ringAlpha = Math.min(0.5, noiseLevel / 100 * 0.6);
+  if(Math.abs(ringAlpha - noiseRingOpacity) > 0.03){
+    noiseRing.style.opacity = ringAlpha.toFixed(2);
+    noiseRingOpacity = ringAlpha;
+  }
+}
+function updateSearchablesVisual(dt){
+  const playerX = player.x, playerZ = player.z;
+  searchableData.forEach((s, i) => {
+    const d = Math.hypot(playerX - s.x, playerZ - s.z);
+    const marker = searchableMarkers[i];
+    if(s.searched){
+      marker.visible = false;
+      if(s.lidOpen > 0){
+        s.lidOpen = Math.max(0, s.lidOpen - dt*2);
+        _tmpEuler.set(-s.lidOpen * 1.1, 0, 0);
+        _tmpQ.setFromEuler(_tmpEuler);
+        _tmpP.set(s.x, 0.92, s.z);
+        _tmpScale.set(1,1,1);
+        _tmpM.compose(_tmpP, _tmpQ, _tmpScale);
+        sLidMesh.setMatrixAt(i, _tmpM);
+        sLidMesh.instanceMatrix.needsUpdate = true;
+      }
+    } else {
+      marker.visible = d < 16;
+      if(d < 16){
+        marker.position.y = 1.6 + Math.sin(time*2 + s.tx) * 0.12;
+        const pulse = 0.55 + 0.45*Math.sin(time*3 + s.tx);
+        marker.material.opacity = pulse * 0.75;
+      }
+    }
+  });
+}
+function updateHeartbeat(dt){
+  const dist=Math.hypot(ghost.x-player.x, ghost.z-player.z);
+  let targetIntensity=0.05;
+  if(player.hidden){ targetIntensity = dist<12 ? 0.35 : 0.12; }
+  else if(wasChasing && hasLOS(ghost.x,ghost.z,player.x,player.z)) targetIntensity=1.0;
+  else if(dist<6) targetIntensity=0.9;
+  else if(dist<12) targetIntensity=0.55+(1-dist/12)*0.35;
+  else if(dist<20) targetIntensity=0.2+(1-dist/20)*0.25;
+  else targetIntensity=0.08;
+  const rate = targetIntensity>heartbeatIntensity?6:2.5;
+  heartbeatIntensity += (targetIntensity-heartbeatIntensity)*Math.min(1,dt*rate);
+  const bpm = 55 + heartbeatIntensity*135;
+  const interval = 60/bpm;
+  heartbeatTimer -= dt;
+  if(heartbeatTimer<=0){
+    heartbeatTimer=interval;
+    playHeartbeatPair(heartbeatIntensity);
+    if(S.heartPulse){
+      heartbeatVisualPulse = 0.35+heartbeatIntensity*0.65;
+      pulseEl.style.opacity = heartbeatVisualPulse.toFixed(3);
+    }
+    if(S.showBpm && heartbeatIntensity>0.25){
+      if(!hudBpm.classList.contains('on')) hudBpm.classList.add('on');
+      hudBpm.textContent = '♥ '+Math.round(bpm)+' BPM';
+    } else {
+      if(hudBpm.classList.contains('on')) hudBpm.classList.remove('on');
+    }
+  }
+  if(S.heartPulse && heartbeatVisualPulse>0){
+    heartbeatVisualPulse -= dt*2.8;
+    if(heartbeatVisualPulse<0) heartbeatVisualPulse=0;
+    if(heartbeatVisualPulse<0.06) pulseEl.style.opacity='0';
+    else pulseEl.style.opacity = heartbeatVisualPulse.toFixed(3);
+  }
+}
+function updateAmbient(dt){
+  ambientTimer -= dt;
+  if(ambientTimer <= 0){
+    ambientTimer = 15 + Math.random()*22;
+    if(!player.hidden && state === 'playing'){
+      const r = Math.random();
+      if(r < 0.35) playWhisper();
+      else if(r < 0.65) playCreak();
+      else if(r < 0.85) playDistantThud();
+      else { playCreak(); setTimeout(playCreak, 400); }
+    }
+  }
+}
+function update(dt){
+  if(state!=='playing') return;
+  time += dt;
+  if(invuln>0) invuln -= dt;
+  if(msgTimer>0){msgTimer-=dt; if(msgTimer<=0) msgEl.style.opacity='0';}
+  updatePlayer(dt);
+  updateSearchProgress(dt);
+  updateGhost(dt);
+  updateExits(dt);
+  updateActions(dt);
+  updateSearchablesVisual(dt);
+  updateNoiseUI();
+  updateHeartbeat(dt);
+  updateAmbient(dt);
+  hudUpdateAcc += dt;
+  if(hudUpdateAcc>0.25){hudUpdateAcc=0; hudTime.textContent=fmtTime(time);}
+}
+function updateAdaptiveResolution(dt){
+  if(!S.adaptive){
+    if(hudFps.classList.contains('on')) hudFps.classList.remove('on');
+    return;
+  }
+  fpsCounter++;
+  fpsTimeAcc += dt;
+  if(fpsTimeAcc>=1.0){
+    currentFps = fpsCounter/fpsTimeAcc;
+    fpsCounter=0; fpsTimeAcc=0;
+    if(S.showFps){
+      hudFps.classList.add('on');
+      hudFps.textContent = Math.round(currentFps)+' FPS';
+    }
+    adaptiveCooldown -= 1;
+    if(adaptiveCooldown<=0){
+      if(currentFps<40 && S.pixelRatio>0.5){
+        S.pixelRatio = Math.max(0.5, S.pixelRatio-0.1);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, S.pixelRatio));
+        adaptiveCooldown=2;
+      } else if(currentFps>56 && S.pixelRatio<1.4){
+        S.pixelRatio = Math.min(1.4, S.pixelRatio+0.08);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, S.pixelRatio));
+        adaptiveCooldown=4;
+      }
+    }
+  }
+}
+
+/* ================= Loop ================= */
+const clock = new THREE.Clock();
+let loopRunning = true;
+
+function loop(){
+  if (!loopRunning) return;
+  requestAnimationFrame(loop);
+  let dt=clock.getDelta();
+  if(dt>0.05) dt=0.05;
+  update(dt);
+  updateAdaptiveResolution(dt);
+  if(state!=='playing'){
+    time += dt*0.4;
+    searchableData.forEach((s, i) => {
+      if(!s.searched){
+        const marker = searchableMarkers[i];
+        if(marker && marker.visible){
+          marker.position.y = 1.6 + Math.sin(time*2 + s.tx)*0.12;
+        }
+      }
+    });
+    if(ghostMesh) animateGhostMesh(dt);
+  }
+  renderer.render(scene,camera);
+  renderer.info.reset();
+}
+
+/* ================= Intro ================= */
+const introEl = document.getElementById('intro');
+const introStage = document.getElementById('introStage');
+const introDots = document.getElementById('introDots');
+const introProgressBar = document.getElementById('introProgressBar');
+const introSkip = document.getElementById('introSkip');
+let introIndex = 0, introSlideTime = 0;
+const INTRO_SLIDE_DURATION = 4.8;
+function buildIntroSlides(){
+  introStage.innerHTML = '';
+  introDots.innerHTML = '';
+  INTRO_SLIDES.forEach((s, i) => {
+    const div = document.createElement('div');
+    div.className = 'introSlide';
+    div.dataset.idx = i;
+    div.innerHTML = `
+      <div class="icon">${s.icon}</div>
+      <h2>${s.title}</h2>
+      <p>${s.text.replace(/\n/g,'<br>')}</p>
+      ${s.quote ? '<div class="quote">'+s.quote+'</div>' : ''}
+    `;
+    introStage.appendChild(div);
+    const dot = document.createElement('div');
+    dot.className = 'dot';
+    dot.dataset.idx = i;
+    introDots.appendChild(dot);
+  });
+}
+function showIntroSlide(idx){
+  if(idx < 0) idx = 0;
+  if(idx >= INTRO_SLIDES.length){ finishIntro(); return; }
+  introIndex = idx;
+  document.querySelectorAll('.introSlide').forEach(el=>{
+    el.classList.toggle('show', parseInt(el.dataset.idx)===idx);
+  });
+  document.querySelectorAll('#introDots .dot').forEach(el=>{
+    el.classList.toggle('active', parseInt(el.dataset.idx)===idx);
+  });
+  introSlideTime = 0;
+  introProgressBar.style.width = '0%';
+}
+function tickIntroProgress(dt){
+  if(!introEl.classList.contains('open')) return;
+  introSlideTime += dt;
+  introProgressBar.style.width = Math.min(100, (introSlideTime/INTRO_SLIDE_DURATION)*100) + '%';
+  if(introSlideTime >= INTRO_SLIDE_DURATION){
+    introSlideTime = 0;
+    if(introIndex+1 >= INTRO_SLIDES.length) finishIntro();
+    else showIntroSlide(introIndex+1);
+  }
+}
+function showIntro(){
+  buildIntroSlides();
+  introIndex = 0;
+  introEl.classList.add('open');
+  if(document.pointerLockElement) document.exitPointerLock();
+  showIntroSlide(0);
+  initAudio();
+}
+function finishIntro(){
+  introEl.classList.remove('open');
+  try { localStorage.setItem('boubhut_intro_v3','1'); } catch(e){}
+  showStart();
+}
+introSkip.addEventListener('click', e=>{e.stopPropagation(); finishIntro();});
+introEl.addEventListener('click', e=>{
+  if(e.target === introSkip) return;
+  if(introIndex+1 >= INTRO_SLIDES.length) finishIntro();
+  else showIntroSlide(introIndex+1);
+});
+
+/* ================= Settings UI ================= */
+const settingsEl = document.getElementById('settings');
+const setTabs = document.querySelectorAll('.setTab');
+const setPanels = document.querySelectorAll('.tab-panel');
+setTabs.forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    setTabs.forEach(t=>t.classList.remove('active'));
+    setPanels.forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    const target = document.querySelector(`.tab-panel[data-panel="${tab.dataset.tab}"]`);
+    if(target) target.classList.add('active');
+  });
+});
+function openSettings(){
+  if(document.pointerLockElement) document.exitPointerLock();
+  if(runBtnHeld){runBtnHeld=false;runBtn.classList.remove('active');}
+  syncSettingsUI();
+  settingsEl.classList.add('open');
+}
+function closeSettings(){
+  settingsEl.classList.remove('open');
+  saveSettings();
+}
+document.getElementById('setClose').addEventListener('click', closeSettings);
+pauseBtn.addEventListener('click', ()=>{
+  if (settingsEl.classList.contains('open')) closeSettings();
+  else openSettings();
+});
+document.getElementById('setApply').addEventListener('click', ()=>{
+  saveSettings(); closeSettings(); showMsg('✓ সেটিংস প্রয়োগ হয়েছে',1.2);
+});
+document.getElementById('setReset').addEventListener('click', ()=>{
+  S = Object.assign({}, DEFAULT_SETTINGS);
+  rebuildTextures(); rebuildGhost(); applySettings(); syncSettingsUI();
+  showMsg('↺ ডিফল্টে রিসেট',1.2);
+});
+document.getElementById('setReplayStory').addEventListener('click', ()=>{
+  try{ localStorage.removeItem('boubhut_intro_v3'); }catch(e){}
+  closeSettings();
+  showMsg('✓ পরের খেলায় গল্প দেখাবে', 1.5);
+});
+function bindToggle(id,key,onChange){
+  const el=document.getElementById(id);
+  el.addEventListener('click', ()=>{
+    S[key]=!S[key]; el.classList.toggle('on', S[key]);
+    saveSettings();
+    if(onChange) onChange(S[key]);
+  });
+}
+function syncToggle(id,key){document.getElementById(id).classList.toggle('on',!!S[key]);}
+function bindSlider(id,valId,key,fmt,onChange){
+  const el=document.getElementById(id), v=document.getElementById(valId);
+  el.addEventListener('input', ()=>{
+    S[key]=parseFloat(el.value); v.textContent=fmt(S[key]);
+    saveSettings();
+    if(onChange) onChange(S[key]);
+  });
+}
+function syncSlider(id,valId,key,fmt){
+  const el=document.getElementById(id), v=document.getElementById(valId);
+  el.value=S[key]; v.textContent=fmt(S[key]);
+}
+function bindSeg(containerId,key,onChange){
+  const el=document.getElementById(containerId);
+  el.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      el.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      S[key]=btn.dataset.v;
+      saveSettings();
+      if(onChange) onChange(S[key]);
+    });
+  });
+}
+function syncSeg(containerId,key){
+  const el=document.getElementById(containerId);
+  el.querySelectorAll('button').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.v===S[key]);
+  });
+}
+const presetBtns = document.querySelectorAll('.preset[data-quality]');
+presetBtns.forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const q=btn.dataset.quality;
+    const preset=QUALITY_PRESETS[q];
+    if(!preset) return;
+    Object.assign(S, preset);
+    S.quality=q;
+    presetBtns.forEach(b=>b.classList.toggle('active', b.dataset.quality===q));
+    rebuildTextures(); rebuildGhost(); applySettings(); syncSettingsUI();
+    saveSettings();
+    showMsg('✓ '+q.toUpperCase()+' কোয়ালিটি',1.2);
+  });
+});
+bindSlider('setPixelRatio','valPixelRatio','pixelRatio',v=>v.toFixed(2),v=>{
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, v));
+});
+bindToggle('setAntialias','antialias');
+bindToggle('setToneMapping','toneMapping',()=>applySettings());
+bindToggle('setShadows','shadows',()=>{renderer.shadowMap.enabled=S.shadows;});
+bindToggle('setAdaptive','adaptive');
+bindSlider('setFov','valFov','fov',v=>Math.round(v)+'°',v=>{camera.fov=v;camera.updateProjectionMatrix();});
+bindSlider('setFogFar','valFogFar','fogFar',v=>Math.round(v),v=>{scene.fog.far=v;});
+bindSlider('setFogNear','valFogNear','fogNear',v=>Math.round(v),v=>{scene.fog.near=v;});
+bindSlider('setHairStrands','valHairStrands','hairStrands',v=>Math.round(v),()=>rebuildGhost());
+bindToggle('setBloodDrops','bloodDrops',()=>rebuildGhost());
+bindToggle('setAura','aura',()=>applySettingVisibility());
+bindToggle('setVignette','vignette',()=>applySettingVisibility());
+bindToggle('setGhostLight','ghostLight',()=>{if(ghostLightRef)ghostLightRef.visible=S.ghostLight;});
+bindToggle('setPlayerLight','playerLight',()=>{playerLight.visible=S.playerLight;});
+bindSeg('setTexQuality','texQuality',()=>rebuildTextures());
+bindSlider('setMasterVol','valMasterVol','masterVol',v=>Math.round(v)+'%');
+bindSlider('setSfxVol','valSfxVol','sfxVol',v=>Math.round(v)+'%');
+bindSlider('setHeartVol','valHeartVol','heartVol',v=>Math.round(v)+'%');
+bindSlider('setFootstepVol','valFootstepVol','footstepVol',v=>Math.round(v)+'%');
+bindSlider('setWhisperVol','valWhisperVol','whisperVol',v=>Math.round(v)+'%');
+bindToggle('setMute','mute');
+bindSlider('setSens','valSens','sensitivity',v=>v.toFixed(1)+'x');
+bindSlider('setTouchSens','valTouchSens','touchSensitivity',v=>v.toFixed(1)+'x');
+bindToggle('setInvertY','invertY');
+bindToggle('setToggleRun','toggleRun');
+bindSeg('setDifficulty','defaultDifficulty',v=>{difficulty=DIFF[v];});
+bindToggle('setShowFps','showFps',()=>{if(!S.showFps)hudFps.classList.remove('on');});
+bindToggle('setShowBpm','showBpm',()=>{if(!S.showBpm)hudBpm.classList.remove('on');});
+bindToggle('setShowTimer','showTimer',()=>{hudTime.style.display=S.showTimer?'':'none';});
+bindToggle('setShowInventory','showInventory',()=>{invEl.style.display=S.showInventory?'':'none';});
+bindToggle('setShowCrosshair','showCrosshair',()=>{crosshairEl.style.display=S.showCrosshair?'':'none';});
+bindSlider('setChSize','valChSize','chSize',v=>Math.round(v),v=>{
+  crosshairEl.style.setProperty('--ch-size', v+'px');
+});
+bindSlider('setChOpacity','valChOpacity','chOpacity',v=>v.toFixed(2),v=>{
+  crosshairEl.style.setProperty('--ch-opacity', v);
+});
+bindToggle('setScreenShake','screenShake');
+bindToggle('setHeartPulse','heartPulse',()=>{if(!S.heartPulse)pulseEl.style.opacity='0';});
+
+function syncSettingsUI(){
+  syncSlider('setPixelRatio','valPixelRatio','pixelRatio',v=>v.toFixed(2));
+  syncToggle('setAntialias','antialias');
+  syncToggle('setToneMapping','toneMapping');
+  syncToggle('setShadows','shadows');
+  syncToggle('setAdaptive','adaptive');
+  syncSlider('setFov','valFov','fov',v=>Math.round(v)+'°');
+  syncSlider('setFogFar','valFogFar','fogFar',v=>Math.round(v));
+  syncSlider('setFogNear','valFogNear','fogNear',v=>Math.round(v));
+  syncSlider('setHairStrands','valHairStrands','hairStrands',v=>Math.round(v));
+  syncToggle('setBloodDrops','bloodDrops');
+  syncToggle('setAura','aura');
+  syncToggle('setVignette','vignette');
+  syncToggle('setGhostLight','ghostLight');
+  syncToggle('setPlayerLight','playerLight');
+  syncSeg('setTexQuality','texQuality');
+  syncSlider('setMasterVol','valMasterVol','masterVol',v=>Math.round(v)+'%');
+  syncSlider('setSfxVol','valSfxVol','sfxVol',v=>Math.round(v)+'%');
+  syncSlider('setHeartVol','valHeartVol','heartVol',v=>Math.round(v)+'%');
+  syncSlider('setFootstepVol','valFootstepVol','footstepVol',v=>Math.round(v)+'%');
+  syncSlider('setWhisperVol','valWhisperVol','whisperVol',v=>Math.round(v)+'%');
+  syncToggle('setMute','mute');
+  syncSlider('setSens','valSens','sensitivity',v=>v.toFixed(1)+'x');
+  syncSlider('setTouchSens','valTouchSens','touchSensitivity',v=>v.toFixed(1)+'x');
+  syncToggle('setInvertY','invertY');
+  syncToggle('setToggleRun','toggleRun');
+  syncSeg('setDifficulty','defaultDifficulty');
+  syncToggle('setShowFps','showFps');
+  syncToggle('setShowBpm','showBpm');
+  syncToggle('setShowTimer','showTimer');
+  syncToggle('setShowInventory','showInventory');
+  syncToggle('setShowCrosshair','showCrosshair');
+  syncSlider('setChSize','valChSize','chSize',v=>Math.round(v));
+  syncSlider('setChOpacity','valChOpacity','chOpacity',v=>v.toFixed(2));
+  syncToggle('setScreenShake','screenShake');
+  syncToggle('setHeartPulse','heartPulse');
+  presetBtns.forEach(b=>b.classList.toggle('active', b.dataset.quality===S.quality));
+}
+
+/* ================= Screens ================= */
+const screenEl = document.getElementById('screen');
+function showStart(){
+  screenEl.innerHTML=`
+    <h1>বৌ ভুত 3D</h1>
+    <p>তোমার <b>বৌ ভুত</b> তোমাকে বিশাল এক বাড়িতে আটকে রেখেছে।<br>
+       ১৫টি ঘর, লম্বা করিডোর — সব জায়গায় খুঁজে পালাও!</p>
+    <ul>
+      <li>🔍 <b>বাক্স-আলমারি সার্চ</b> — চাবি-হাতুড়ি-রেঞ্চ</li>
+      <li>🚪 <b>প্রধান দরজা</b> — ৩টি চাবি</li>
+      <li>🪟 <b>জানালা</b> (উপরে) — হাতুড়ি</li>
+      <li>🚧 <b>পিছনের গেট</b> (নিচে) — রেঞ্চ</li>
+      <li>🔊 <b>শব্দ করলে ভুত ছুটে আসে!</b></li>
+      <li>চলাচল: বাম পাশের ভার্চুয়াল জয়স্টিক | দৌড়: <span class="kbd">RUN</span></li>
+      <li>সার্চ/লুকাও: ডান পাশের অ্যাকশন বাটন | লুকানো জায়গা: আলমারি ও খাট</li>
+      <li>বিরতি ও সেটিংস: <span class="kbd">⏸</span> বা <span class="kbd">⚙</span></li>
+    </ul>
+    <div class="small">কঠিনতা বেছে নাও:</div>
+    <div class="diff-row">
+      <button class="diff-btn" data-diff="easy">সহজ<span class="sub">৫ জীবন · কান কম</span></button>
+      <button class="diff-btn" data-diff="medium">মাঝারি<span class="sub">৩ জীবন · স্বাভাবিক</span></button>
+      <button class="diff-btn" data-diff="hard">কঠিন<span class="sub">২ জীবন · তীক্ষ্ণ কান</span></button>
+    </div>
+    <div class="btn-row">
+      <button class="secondary" data-action="story">📖 গল্প দেখো</button>
+      <button class="secondary" data-action="settings">⚙ সেটিংস</button>
+    </div>`;
+  screenEl.classList.remove('hidden');
+  screenEl.querySelectorAll('.diff-btn').forEach(b=>{
+    b.addEventListener('click',()=>{
+      initAudio(); difficulty=DIFF[b.dataset.diff];
+      S.defaultDifficulty = b.dataset.diff; saveSettings();
+      startGame();
+    });
+  });
+  const storyBtn = screenEl.querySelector('[data-action="story"]');
+  if(storyBtn) storyBtn.addEventListener('click', ()=>{ showIntro(); });
+  const setBtn = screenEl.querySelector('[data-action="settings"]');
+  if(setBtn) setBtn.addEventListener('click', openSettings);
+}
+function showWin(exit){
+  const name = exit?exit.name:'বাইরে';
+  screenEl.innerHTML=`
+    <h1 class="good">🎉 পালাতে পেরেছ!</h1>
+    <p>তুমি <b>${name}</b> দিয়ে বাইরে বেরিয়ে গেলে।<br>
+       বৌ ভুত পিছনে চিৎকার করছে — <b>"কোথায় যাচ্ছো?!"</b></p>
+    <p><b>কঠিনতা:</b> ${difficulty.name} &nbsp;|&nbsp; <b>সময়:</b> ${fmtTime(time)} &nbsp;|&nbsp; <b>বাকি জীবন:</b> ${lives}</p>
+    <div class="btn-row">
+      <button class="primary" data-action="again">আবার খেলো</button>
+      <button class="secondary" data-action="settings">⚙ সেটিংস</button>
+    </div>`;
+  screenEl.classList.remove('hidden');
+  screenEl.querySelector('[data-action="again"]').addEventListener('click',()=>{initAudio();showStart();});
+  screenEl.querySelector('[data-action="settings"]').addEventListener('click', openSettings);
+}
+function showLose(){
+  screenEl.innerHTML=`
+    <h1>😱 ধরা পড়ে গেলে!</h1>
+    <p>বৌ ভুত তোমাকে ${difficulty.lives} বার ধরেছে।<br>
+       এবার সে তোমাকে চিরকালের জন্য ঘরে আটকে রাখবে...</p>
+    <p class="small">সময় টিকেছিল: ${fmtTime(time)} &nbsp;|&nbsp; কঠিনতা: ${difficulty.name}</p>
+    <div class="btn-row">
+      <button class="primary" data-action="again">আবার চেষ্টা করো</button>
+      <button class="secondary" data-action="settings">⚙ সেটিংস</button>
+    </div>`;
+  screenEl.classList.remove('hidden');
+  screenEl.querySelector('[data-action="again"]').addEventListener('click',()=>{initAudio();showStart();});
+  screenEl.querySelector('[data-action="settings"]').addEventListener('click', openSettings);
+}
+function startGame(){
+  resetGame();
+  state='playing';
+  lastFearOpacity=-1; lastLivesShown=-1; lastKeysShown=-1;
+  screenEl.classList.add('hidden');
+  tryLockLandscape();
+}
+
+/* ================= Resize ================= */
+function onResize(){
+  const w=window.innerWidth, h=window.innerHeight;
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, S.pixelRatio));
+  renderer.setSize(w,h);
+  resizeJumpscare();
+}
+window.addEventListener('resize', onResize);
+window.addEventListener('orientationchange', ()=>setTimeout(onResize,250));
+
+const introClock = new THREE.Clock();
+function introLoop(){
+  requestAnimationFrame(introLoop);
+  const dt = introClock.getDelta();
+  if(introEl.classList.contains('open')) tickIntroProgress(dt);
+}
+introLoop();
+
+/* ================= Boot ================= */
+rebuildGhost();
+resetGame();
+camera.position.set(player.x, EYE, player.z);
+camera.rotation.y = yaw;
+applySettings();
+syncSettingsUI();
+onResize();
+requestAnimationFrame(loop);
+
+(function bootstrap(){
+  let seen = false;
+  try { seen = !!localStorage.getItem('boubhut_intro_v3'); } catch(e){}
+  if(!seen) showIntro();
+  else showStart();
+})();
+
+document.getElementById('gearBtn').addEventListener('click', openSettings);
+
+// Expose Android commands to control game state externally if needed
+window.AndroidGameBridge = {
+  pauseGame: function(){ openSettings(); },
+  resumeGame: function(){ closeSettings(); },
+  isGamePlaying: function(){ return state === 'playing'; }
+};
+
+})();
+</script>
+</body>
+</html>

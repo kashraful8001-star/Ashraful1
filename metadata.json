@@ -1,0 +1,6 @@
+{
+  "name": "Bou Bhut 3D",
+  "description": "বৌ ভুত 3D (Bou Bhut 3D) — রোমাঞ্চকর বাংলা থ্রিডি সারভাইভাল হরর এসকেপ গেম। ১৫টি ঘর, রক্তচক্ষু বৌ ভুত, গোপন জিনিস খোঁজা এবং গোলকধাঁধা থেকে পালানোর চরম সাসপেন্স।",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
